@@ -324,6 +324,9 @@ class MetadataExtractor {
         return 'Mixcraft';
       case '.zpj':
         return 'Zrythm';
+      case '.mon':
+      case '.wpr':
+        return 'WaveLab';
       default:
         return null;
     }

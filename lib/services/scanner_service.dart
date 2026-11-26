@@ -57,6 +57,8 @@ class ScannerService {
     '.mx9', // Mixcraft 9
     '.mx10', // Mixcraft 10
     '.zpj', // Zrythm
+    '.mon', // WaveLab (audio montage)
+    '.wpr', // WaveLab (project)
   };
 
   // Extensions that are directories ("package bundles") rather than a single

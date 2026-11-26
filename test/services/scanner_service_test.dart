@@ -46,6 +46,42 @@ void main() {
     });
   });
 
+  group('WaveLab project files', () {
+    late Directory tempDir;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('scanner_wavelab_test_');
+    });
+
+    tearDown(() async {
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+
+    test('.mon and .wpr are supported extensions', () {
+      expect(ScannerService.supportedExtensions, contains('.mon'));
+      expect(ScannerService.supportedExtensions, contains('.wpr'));
+    });
+
+    test('a scan finds WaveLab montages and projects', () async {
+      final mon = File(p.join(tempDir.path, 'Master', 'Album.mon'));
+      final wpr = File(p.join(tempDir.path, 'Master', 'Album.wpr'));
+      await mon.create(recursive: true);
+      await wpr.create(recursive: true);
+      await File(p.join(tempDir.path, 'Master', 'Track 1.wav')).writeAsString('x');
+
+      final results = await ScannerService().scanDirectory(tempDir.path).toList();
+      final paths = results.map((e) => e.path).toSet();
+
+      expect(paths, {mon.path, wpr.path});
+    });
+
+    test('a WaveLab project reveals its containing folder', () async {
+      final mon = File(p.join(tempDir.path, 'Album.mon'));
+      await mon.writeAsString('x');
+      expect(ScannerService.projectContainingFolder(mon.path), tempDir.path);
+    });
+  });
+
   group('projectContainingFolder', () {
     // Regression coverage for GitHub issue #142: "Open Folder" on a Logic Pro
     // / LUNA project opened the project in the DAW instead of revealing its

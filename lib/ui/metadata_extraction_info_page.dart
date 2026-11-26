@@ -78,6 +78,7 @@ const _dawExtractionInfo = [
   _DawExtractionInfo('Studio One', bpm: true, key: false, version: true, notes: false, tracks: true),
   _DawExtractionInfo('Tracktion Waveform', bpm: false, key: false, version: false, notes: false),
   _DawExtractionInfo('Universal Audio LUNA', bpm: false, key: false, version: false, notes: false),
+  _DawExtractionInfo('WaveLab', bpm: false, key: false, version: false, notes: false),
 ];
 
 class MetadataExtractionInfoPage extends StatelessWidget {

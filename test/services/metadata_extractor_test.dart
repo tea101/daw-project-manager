@@ -60,6 +60,19 @@ void main() {
       expect(await dawTypeFor('.pts'), 'Pro Tools');
     });
 
+    test('.mon → WaveLab', () async {
+      expect(await dawTypeFor('.mon'), 'WaveLab');
+    });
+
+    test('.wpr → WaveLab', () async {
+      expect(await dawTypeFor('.wpr'), 'WaveLab');
+    });
+
+    test('WaveLab extensions are case-insensitive', () async {
+      expect(await dawTypeFor('.MON'), 'WaveLab');
+      expect(await dawTypeFor('.WPR'), 'WaveLab');
+    });
+
     test('.rpp → Reaper', () async {
       expect(await dawTypeFor('.rpp'), 'Reaper');
     });
@@ -963,7 +976,7 @@ TEMPO 120 4 4 0
       });
     }
 
-    for (final ext in ['.ptx', '.pts', '.cwp', '.ardour', '.band', '.aup3']) {
+    for (final ext in ['.ptx', '.pts', '.cwp', '.ardour', '.band', '.aup3', '.mon', '.wpr']) {
       test('$ext is not supported', () {
         expect(MetadataExtractor.supportsFullExtraction('/fake/project$ext'), isFalse);
       });
