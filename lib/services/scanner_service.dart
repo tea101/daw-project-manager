@@ -99,6 +99,7 @@ class ScannerService {
     'autosave',             // Cakewalk
     'auto save',            // FL Studio (alternate)
     'backup.mon',           // WaveLab (automatic audio montage backups)
+    'system.mon',           // WaveLab 13 (montage's own folder: backups/, cache/)
   };
 
   bool _isInBackupFolder(String path) {
@@ -113,11 +114,15 @@ class ScannerService {
   /// copy of the real one, for every DAW.
   static bool isAppleDoublePath(String path) => p.basename(path).startsWith('._');
 
-  /// Whether [path] lies inside a WaveLab `Backup.mon` folder, where WaveLab
-  /// copies the previous version of an audio montage each time it is saved
-  /// (`Montage_#X.mon`).
-  static bool isWaveLabBackupPath(String path) =>
-      p.split(path).any((s) => s.toLowerCase() == 'backup.mon');
+  /// Whether [path] lies inside a folder WaveLab keeps for itself beside an
+  /// audio montage: `Backup.mon` (the manual's layout) or `system.mon`, where
+  /// WaveLab 13 keeps `backups/Montage_#X.mon` and a `cache/`. Every montage
+  /// in either is an automatic copy of the one saved beside the folder, never
+  /// a project of its own.
+  static bool isWaveLabBackupPath(String path) => p.split(path).any((s) {
+        final lower = s.toLowerCase();
+        return lower == 'backup.mon' || lower == 'system.mon';
+      });
 
   /// Whether a catalogued project at [path] matches one of the exclusion
   /// rules added for WaveLab backups and AppleDouble files — the entries a

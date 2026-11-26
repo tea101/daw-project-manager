@@ -115,6 +115,24 @@ void main() {
       expect(await scanned(), {montage.path, project.path});
     });
 
+    test('WaveLab 13 backups in system.mon/backups are skipped; the montage beside it is found', () async {
+      // Regression: the layout found on a real WaveLab 13 drive — the montage
+      // file, and beside it system.mon/backups/<name>_#_<n>.mon and a cache.
+      final montage = await touch(['WAVELAB', 'Soul Witness.wav.mon']);
+      await touch(['WAVELAB', 'system.mon', 'backups', 'Soul Witness.wav_#_2.mon']);
+      await touch(['WAVELAB', 'system.mon', 'backups', 'Soul Witness.wav_#_16.mon']);
+      await touch(['WAVELAB', 'system.mon', 'cache', 'Soul Witness.wav.mon']);
+
+      expect(await scanned(), {montage.path});
+      final shallow = await ScannerService().scanDirectoryShallow(tempDir.path, maxDepth: 2).toList();
+      expect(shallow.map((r) => r.file.path), [montage.path]);
+    });
+
+    test('a folder merely named "system" is not treated as WaveLab\'s', () async {
+      final real = await touch(['system', 'Album.mon']);
+      expect(await scanned(), {real.path});
+    });
+
     test('Backup.mon is matched whatever its letter case', () async {
       final montage = await touch(['Album', 'Album.mon']);
       await touch(['Album', 'BACKUP.MON', 'Album_#1.mon']);
@@ -166,6 +184,9 @@ void main() {
       expect(ScannerService.isAppleDoublePath(p.join('a', 'My._Song.ptx')), isFalse);
       expect(ScannerService.isWaveLabBackupPath(p.join('a', 'Backup.mon', 'x_#1.mon')), isTrue);
       expect(ScannerService.isWaveLabBackupPath(p.join('a', 'Backup', 'x.mon')), isFalse);
+      expect(ScannerService.isWaveLabBackupPath(p.join('a', 'system.mon', 'backups', 'x_#1.mon')), isTrue);
+      expect(ScannerService.isWaveLabBackupPath(p.join('a', 'System.MON', 'cache', 'x.mon')), isTrue);
+      expect(ScannerService.isWaveLabBackupPath(p.join('a', 'system', 'x.mon')), isFalse);
       expect(ScannerService.isNewlyExcludedPath(p.join('a', 'Album.mon')), isFalse);
     });
   });

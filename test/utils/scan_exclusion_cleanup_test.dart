@@ -44,6 +44,20 @@ void main() {
       expect(result.keptForReleases, isEmpty);
     });
 
+    test('WaveLab 13 system.mon backups are offered; the montage beside them is not', () {
+      final montage = TestFactories.makeProject(
+        id: 'montage13',
+        filePath: p.join(root, 'WAVELAB', 'Soul Witness.wav.mon'),
+        notes: 'genuine',
+      );
+      final backup = TestFactories.makeProject(
+        id: 'backup13',
+        filePath: p.join(root, 'WAVELAB', 'system.mon', 'backups', 'Soul Witness.wav_#_16.mon'),
+      );
+      final result = findScanExclusionCleanup([montage, backup], const {});
+      expect(result.removable.map((e) => e.id), ['backup13']);
+    });
+
     test('a montage merely named with "_#" outside Backup.mon is a real project', () {
       final named = TestFactories.makeProject(
         id: 'named',
