@@ -4752,5 +4752,10 @@
   "pluginPresetsAlreadyThere": "{count, plural, =1{1 était déjà dans le dossier ou répété dans un autre projet} other{{count} étaient déjà dans le dossier ou répétés dans d'autres projets}}",
   "pluginPresetsUnsavable": "{count, plural, =1{1 plug-in garde son état} other{{count} plug-ins gardent leur état}} dans un format qui ne peut pas être enregistré comme preset : {names}",
   "pluginPresetsNotRead": "{count, plural, =1{1 projet n'a pas pu être lu} other{{count} projets n'ont pas pu être lus}}",
-  "pluginPresetsNoProjects": "Il n'y a aucun projet Cubase dans ce profil."
+  "pluginPresetsNoProjects": "Il n'y a aucun projet Cubase dans ce profil.",
+  "scanCleanupTitle": "Retirer les sauvegardes automatiques et les doublons cachés ?",
+  "scanCleanupBody": "{count, plural, one{{count} entrée de votre liste est une sauvegarde automatique de WaveLab ou un fichier macOS caché « ._ », pas un vrai projet. Elle passera dans Supprimés récemment (Réglages > Dossiers de projets), où vous pouvez la restaurer pendant 30 jours.} other{{count} entrées de votre liste sont des sauvegardes automatiques de WaveLab ou des fichiers macOS cachés « ._ », pas de vrais projets. Elles passeront dans Supprimés récemment (Réglages > Dossiers de projets), où vous pouvez les restaurer pendant 30 jours.}} Les fichiers sur le disque ne sont pas touchés.",
+  "scanCleanupKeptForReleases": "{count, plural, one{{count} autre fait partie d’une sortie et reste.} other{{count} autres font partie d’une sortie et restent.}}",
+  "scanCleanupConfirmButton": "Placer dans Supprimés récemment",
+  "scanCleanupDone": "{count, plural, one{{count} entrée placée dans Supprimés récemment.} other{{count} entrées placées dans Supprimés récemment.}}"
 }

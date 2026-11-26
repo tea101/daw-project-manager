@@ -57,6 +57,8 @@ class ScannerService {
     '.mx9', // Mixcraft 9
     '.mx10', // Mixcraft 10
     '.zpj', // Zrythm
+    '.mon', // WaveLab (audio montage)
+    '.wpr', // WaveLab (project)
   };
 
   // Extensions that are directories ("package bundles") rather than a single
@@ -96,12 +98,38 @@ class ScannerService {
     'history',              // Studio One
     'autosave',             // Cakewalk
     'auto save',            // FL Studio (alternate)
+    'backup.mon',           // WaveLab (automatic audio montage backups)
+    'system.mon',           // WaveLab 13 (montage's own folder: backups/, cache/)
   };
 
   bool _isInBackupFolder(String path) {
     final segments = p.split(path);
     return segments.any((s) => _backupFolderNames.contains(s.toLowerCase()));
   }
+
+  /// Whether [path] is a macOS AppleDouble file (`._Song.ptx`): the hidden
+  /// metadata macOS writes beside a file on drives and shares that can't
+  /// store it natively. It carries the project's extension but is never a
+  /// project, so without this check every such file was listed as a second
+  /// copy of the real one, for every DAW.
+  static bool isAppleDoublePath(String path) => p.basename(path).startsWith('._');
+
+  /// Whether [path] lies inside a folder WaveLab keeps for itself beside an
+  /// audio montage: `Backup.mon` (the manual's layout) or `system.mon`, where
+  /// WaveLab 13 keeps `backups/Montage_#X.mon` and a `cache/`. Every montage
+  /// in either is an automatic copy of the one saved beside the folder, never
+  /// a project of its own.
+  static bool isWaveLabBackupPath(String path) => p.split(path).any((s) {
+        final lower = s.toLowerCase();
+        return lower == 'backup.mon' || lower == 'system.mon';
+      });
+
+  /// Whether a catalogued project at [path] matches one of the exclusion
+  /// rules added for WaveLab backups and AppleDouble files — the entries a
+  /// rescan offers to move to Recently deleted. Deliberately limited to those
+  /// two rules, so the cleanup never offers anything older rules let through.
+  static bool isNewlyExcludedPath(String path) =>
+      isAppleDoublePath(path) || isWaveLabBackupPath(path);
 
   /// Cubase / Nuendo auto-saves land in the same folder as the project
   /// but with "_AutoSave" appended to the base name.
@@ -122,7 +150,9 @@ class ScannerService {
       if (entity is! File) {
         // Some DAWs (Logic Pro, LUNA, GarageBand) save as a directory bundle
         // rather than a single file.
-        if (entity is Directory && _isBundleDirectory(entity.path)) {
+        if (entity is Directory &&
+            _isBundleDirectory(entity.path) &&
+            !isAppleDoublePath(entity.path)) {
           final stat = await entity.stat();
           final stem = p.basenameWithoutExtension(entity.path).toLowerCase();
           if (best == null || stem == folderName || stat.modified.isAfter(bestModified!)) {
@@ -134,6 +164,7 @@ class ScannerService {
       }
       final ext = p.extension(entity.path).toLowerCase();
       if (!supportedExtensions.contains(ext)) continue;
+      if (isAppleDoublePath(entity.path)) continue;
       if (_isInBackupFolder(entity.path)) continue;
       if ((ext == '.cpr' || ext == '.npr') && _isCubaseAutoSave(entity.path)) continue;
 
@@ -246,6 +277,9 @@ class ScannerService {
           final ext = p.extension(entity.path).toLowerCase();
           if (!supportedExtensions.contains(ext)) continue;
 
+          // macOS AppleDouble metadata (`._Song.ptx`), never a project.
+          if (isAppleDoublePath(entity.path)) continue;
+
           // Ignore auto-backup copies created by various DAWs.
           if (_isInBackupFolder(entity.path)) continue;
 
@@ -260,7 +294,7 @@ class ScannerService {
           // Some DAWs (Logic Pro, LUNA, GarageBand) present projects as
           // directory bundles rather than a single file.
           if (_isBundleDirectory(entity.path)) {
-            yield entity;
+            if (!isAppleDoublePath(entity.path)) yield entity;
             continue;
           }
 

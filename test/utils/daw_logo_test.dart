@@ -8,6 +8,12 @@ void main() {
       expect(getDawLogoPath(''), isNull);
     });
 
+    test('WaveLab does not borrow another DAW\'s logo', () {
+      // No WaveLab logo is bundled yet. The partial-match fallback must not
+      // hand it Tracktion Waveform's (or any other) logo by accident.
+      expect(getDawLogoPath('WaveLab'), isNull);
+    });
+
     test('unrecognized dawType returns null', () {
       expect(getDawLogoPath('Some Unknown DAW'), isNull);
     });
