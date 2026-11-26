@@ -58,6 +58,16 @@
       this one for each shipped version instead of overwriting it, so the
       changelog accumulates.
     -->
+    <release version="3.0.3" date="2026-11-26">
+      <description>
+        <ul>
+          <li>Customised WaveLab build (unofficial, from the tea101 fork), not an official Bandpass Records release.</li>
+          <li>WaveLab projects (.mon and .wpr) now show a dedicated WaveLab logo wherever DAW logos appear.</li>
+          <li>Newly discovered projects start in your first configured phase (Settings &gt; Phases) instead of a fixed Idea phase.</li>
+        </ul>
+      </description>
+      <url>https://github.com/tea101/daw-project-manager/releases/tag/v3.0.3</url>
+    </release>
     <release version="3.0.2" date="2026-11-26">
       <description>
         <ul>

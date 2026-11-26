@@ -15,6 +15,17 @@
   ],
   "releases": [
     {
+      "version": "3.0.3",
+      "date": "2026-11-26",
+      "highlights": {
+        "en": [
+          "Customised WaveLab build (unofficial, from the tea101 fork), not an official Bandpass Records release.",
+          "WaveLab projects (.mon and .wpr) now show a dedicated WaveLab logo wherever DAW logos appear.",
+          "Newly discovered projects start in your first configured phase (Settings > Phases) instead of a fixed Idea phase."
+        ]
+      }
+    },
+    {
       "version": "3.0.2",
       "date": "2026-11-26",
       "highlights": {

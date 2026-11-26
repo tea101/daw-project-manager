@@ -287,6 +287,12 @@ class ProjectRepository {
   ];
   String get _customPhasesKey => '${profileId}_phases';
 
+  /// Phase given to a project the scanner finds for the first time: the
+  /// first configured phase, or 'Idea' when none is configured.
+  @visibleForTesting
+  static String newProjectStatus(List<String> phases) =>
+      phases.isNotEmpty ? phases.first : 'Idea';
+
   List<String> getCustomPhases() {
     final raw = appSettingsBox.get(_customPhasesKey);
     if (raw == null) return List.unmodifiable(_defaultPhases);
@@ -1188,7 +1194,10 @@ class ProjectRepository {
             fileExtension: ext,
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
-            status: 'Idea',
+            // A newly found project starts in the first phase the user has
+            // configured (Settings > Phases), not a fixed 'Idea' that may no
+            // longer exist. Falls back to 'Idea' if the list is somehow empty.
+            status: newProjectStatus(getCustomPhases()),
             bpm: bpm,
             musicalKey: key,
             dawType: dawType,
