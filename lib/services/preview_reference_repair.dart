@@ -96,6 +96,6 @@ class PreviewReferenceRepair {
     field('manual', before.previewSongPath, after.previewSongPath);
     field('auto', before.previewSongAutoPath, after.previewSongAutoPath);
     field('ignored', before.ignoredNewerSongPath, after.ignoredNewerSongPath);
-    return '${before.name}: ${parts.join('; ')}';
+    return '${before.displayName}: ${parts.join('; ')}';
   }
 }
