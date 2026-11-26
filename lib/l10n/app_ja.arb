@@ -4752,5 +4752,10 @@
   "pluginPresetsAlreadyThere": "{count, plural, =1{1件はフォルダに既にあるか、他のプロジェクトと重複していました} other{{count}件はフォルダに既にあるか、他のプロジェクトと重複していました}}",
   "pluginPresetsUnsavable": "{count, plural, =1{1個のプラグイン} other{{count}個のプラグイン}}は、プリセットとして保存できない形式で状態を保持しています: {names}",
   "pluginPresetsNotRead": "{count, plural, =1{1件のプロジェクトを読み込めませんでした} other{{count}件のプロジェクトを読み込めませんでした}}",
-  "pluginPresetsNoProjects": "このプロファイルにCubaseプロジェクトはありません。"
+  "pluginPresetsNoProjects": "このプロファイルにCubaseプロジェクトはありません。",
+  "scanCleanupTitle": "自動バックアップと隠れた重複を取り除きますか？",
+  "scanCleanupBody": "リストの{count}件は、WaveLabの自動バックアップまたはmacOSの隠しファイル「._」で、実際のプロジェクトではありません。「最近削除した項目」（設定 > プロジェクトフォルダ）に移動し、30日間は復元できます。ディスク上のファイルには触れません。",
+  "scanCleanupKeptForReleases": "ほかに{count}件はリリースに含まれているため残します。",
+  "scanCleanupConfirmButton": "「最近削除した項目」に移動",
+  "scanCleanupDone": "{count}件を「最近削除した項目」に移動しました。"
 }

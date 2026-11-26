@@ -4776,5 +4776,10 @@
   "pluginPresetsAlreadyThere": "{count, plural, =1{1 já estava na pasta ou se repetia em outro projeto} other{{count} já estavam na pasta ou se repetiam em outros projetos}}",
   "pluginPresetsUnsavable": "{count, plural, =1{1 plug-in guarda o estado} other{{count} plug-ins guardam o estado}} em um formato que não pode ser salvo como preset: {names}",
   "pluginPresetsNotRead": "{count, plural, =1{1 projeto não pôde ser lido} other{{count} projetos não puderam ser lidos}}",
-  "pluginPresetsNoProjects": "Não há projetos do Cubase neste perfil."
+  "pluginPresetsNoProjects": "Não há projetos do Cubase neste perfil.",
+  "scanCleanupTitle": "Remover backups automáticos e duplicatas ocultas?",
+  "scanCleanupBody": "{count, plural, one{{count} item da sua lista é um backup automático do WaveLab ou um arquivo oculto do macOS \"._\", não um projeto de verdade. Ele vai para Excluídos recentemente (Configurações > Pastas de projetos), onde você pode restaurá-lo por 30 dias.} other{{count} itens da sua lista são backups automáticos do WaveLab ou arquivos ocultos do macOS \"._\", não projetos de verdade. Eles vão para Excluídos recentemente (Configurações > Pastas de projetos), onde você pode restaurá-los por 30 dias.}} Os arquivos no disco não são tocados.",
+  "scanCleanupKeptForReleases": "{count, plural, one{Mais {count} faz parte de um lançamento e fica.} other{Mais {count} fazem parte de um lançamento e ficam.}}",
+  "scanCleanupConfirmButton": "Mover para Excluídos recentemente",
+  "scanCleanupDone": "{count, plural, one{{count} item movido para Excluídos recentemente.} other{{count} itens movidos para Excluídos recentemente.}}"
 }

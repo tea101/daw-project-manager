@@ -82,6 +82,94 @@ void main() {
     });
   });
 
+  group('scan exclusions: WaveLab Backup.mon and macOS AppleDouble files', () {
+    late Directory tempDir;
+
+    setUp(() async {
+      tempDir = await Directory.systemTemp.createTemp('scanner_exclusion_test_');
+    });
+
+    tearDown(() async {
+      if (await tempDir.exists()) await tempDir.delete(recursive: true);
+    });
+
+    Future<File> touch(List<String> parts, {DateTime? modified}) async {
+      final f = File(p.joinAll([tempDir.path, ...parts]));
+      await f.create(recursive: true);
+      await f.writeAsString('x');
+      if (modified != null) await f.setLastModified(modified);
+      return f;
+    }
+
+    Future<Set<String>> scanned() async =>
+        (await ScannerService().scanDirectory(tempDir.path).toList())
+            .map((e) => e.path)
+            .toSet();
+
+    test('montages in Backup.mon are skipped; the montage beside it is found', () async {
+      final montage = await touch(['Album', 'Album.mon']);
+      final project = await touch(['Album', 'Album.wpr']);
+      await touch(['Album', 'Backup.mon', 'Album_#1.mon']);
+      await touch(['Album', 'Backup.mon', 'Album_#2.mon']);
+
+      expect(await scanned(), {montage.path, project.path});
+    });
+
+    test('Backup.mon is matched whatever its letter case', () async {
+      final montage = await touch(['Album', 'Album.mon']);
+      await touch(['Album', 'BACKUP.MON', 'Album_#1.mon']);
+
+      expect(await scanned(), {montage.path});
+    });
+
+    test('a montage named with "_#" outside Backup.mon is still found', () async {
+      final named = await touch(['Album', 'Mix_#2.mon']);
+      expect(await scanned(), {named.path});
+    });
+
+    test('AppleDouble files are skipped for every DAW', () async {
+      final real = <String>{};
+      for (final name in ['Song.ptx', 'Song.als', 'Song.cpr', 'Song.flp', 'Song.rpp', 'Song.mon', 'Song.wpr']) {
+        real.add((await touch([name.split('.').last, name])).path);
+        await touch([name.split('.').last, '._$name']);
+      }
+      expect(await scanned(), real);
+    });
+
+    test("a bundle's AppleDouble file is skipped, the bundle is found", () async {
+      final bundle = Directory(p.join(tempDir.path, 'Song.logicx'));
+      await bundle.create(recursive: true);
+      await File(p.join(bundle.path, 'projectData')).writeAsString('x');
+      await touch(['._Song.logicx']);
+
+      expect(await scanned(), {bundle.path});
+    });
+
+    test('smart-folder scan never picks a newer AppleDouble file over the project', () async {
+      final now = DateTime.now();
+      final real = await touch(['Song', 'Session.ptx'], modified: now.subtract(const Duration(days: 1)));
+      await touch(['Song', '._Session.ptx'], modified: now);
+
+      final results = await ScannerService().scanDirectoryShallow(tempDir.path).toList();
+      expect(results.map((r) => r.file.path), [real.path]);
+    });
+
+    test('smart-folder scan finds nothing in a Backup.mon folder', () async {
+      await touch(['Backup.mon', 'Album_#1.mon']);
+      final results = await ScannerService().scanDirectoryShallow(tempDir.path).toList();
+      expect(results, isEmpty);
+    });
+
+    test('path rules', () {
+      expect(ScannerService.isAppleDoublePath(p.join('a', '._Song.ptx')), isTrue);
+      expect(ScannerService.isAppleDoublePath(p.join('._folder', 'Song.ptx')), isFalse);
+      expect(ScannerService.isAppleDoublePath(p.join('a', 'My._Song.ptx')), isFalse);
+      expect(ScannerService.isWaveLabBackupPath(p.join('a', 'Backup.mon', 'x_#1.mon')), isTrue);
+      expect(ScannerService.isWaveLabBackupPath(p.join('a', 'Backup', 'x.mon')), isFalse);
+      expect(ScannerService.isNewlyExcludedPath(p.join('a', 'Album.mon')), isFalse);
+    });
+  });
+
   group('projectContainingFolder', () {
     // Regression coverage for GitHub issue #142: "Open Folder" on a Logic Pro
     // / LUNA project opened the project in the DAW instead of revealing its
