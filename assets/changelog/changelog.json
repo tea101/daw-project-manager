@@ -21,7 +21,8 @@
         "en": [
           "Customised WaveLab build (unofficial, from the tea101 fork), not an official Bandpass Records release.",
           "WaveLab projects (.mon and .wpr) now show a dedicated WaveLab logo wherever DAW logos appear.",
-          "Newly discovered projects start in your first configured phase (Settings > Phases) instead of a fixed Idea phase."
+          "Newly discovered projects start in your first configured phase (Settings > Phases) instead of a fixed Idea phase.",
+          "Preview songs never pick macOS ._ metadata files (which can't play); previews already pointing at one are repaired to the real file."
         ]
       }
     },

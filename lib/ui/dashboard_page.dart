@@ -28,6 +28,7 @@ import '../services/release_artwork_service.dart';
 import '../services/audio_analysis_service.dart';
 import '../services/metadata_extractor.dart';
 import '../services/mixdown_detector_service.dart';
+import '../services/preview_reference_repair.dart';
 import 'row_click_selection.dart';
 import 'widgets/project_info_columns.dart';
 import 'widgets/on_art_marker.dart';
@@ -1110,6 +1111,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
       // Auto-detect preview songs for projects that have neither a manual nor
       // a previously auto-detected path. Runs after the full scan so all upserts
       // are committed before we read back the project list.
+      // First repair previews that point at macOS AppleDouble files
+      // ("._Song.wav"): earlier versions could pick them, and they never play.
+      await repo.repairAppleDoublePreviewReferences();
       final customFolders = ref.read(customMixdownFoldersProvider).value;
       final customFoldersByDaw = ref
           .read(customMixdownFoldersByDawProvider)
@@ -6062,6 +6066,16 @@ Future<void> playProjectPreview(
   final customFoldersByDaw = ref
       .read(customMixdownFoldersByDawProvider)
       .value;
+  // A preview stored as a macOS AppleDouble file ("._Song.wav") can never
+  // play ("Failed to set source"). Point it at the real file, or clear it so
+  // detection below finds a genuine one.
+  final repairedPreview = PreviewReferenceRepair.repair(project);
+  if (repairedPreview != null) {
+    final repo = await ref.read(repositoryProvider.future);
+    await repo.updateProject(repairedPreview);
+    project = repairedPreview;
+    ref.invalidate(allProjectsStreamProvider);
+  }
   var effectivePath = project.previewSongPath?.isNotEmpty == true
       ? project.previewSongPath!
       : project.previewSongAutoPath;
@@ -7247,6 +7261,7 @@ class _PlutoProjectsTableState extends ConsumerState<_PlutoProjectsTable>
   Future<void> _setPreviewSong(MusicProject project, String filePath) async {
     final ext = filePath.split('.').last.toLowerCase();
     if (!_audioExtensions.contains('.$ext')) return;
+    if (MixdownDetectorService.isAppleDoubleFile(filePath)) return;
     final repo = await ref.read(repositoryProvider.future);
     final updated = project.copyWith(
       previewSongPath: filePath,
@@ -8905,7 +8920,8 @@ class _PlutoProjectsTableState extends ConsumerState<_PlutoProjectsTable>
         for (final xFile in detail.files) {
           final path = xFile.path;
           final ext = '.${path.split('.').last.toLowerCase()}';
-          if (_audioExtensions.contains(ext)) {
+          if (_audioExtensions.contains(ext) &&
+              !MixdownDetectorService.isAppleDoubleFile(path)) {
             _setPreviewSong(targetProject, path);
             return;
           }

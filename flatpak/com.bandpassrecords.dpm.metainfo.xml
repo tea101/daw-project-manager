@@ -64,6 +64,7 @@
           <li>Customised WaveLab build (unofficial, from the tea101 fork), not an official Bandpass Records release.</li>
           <li>WaveLab projects (.mon and .wpr) now show a dedicated WaveLab logo wherever DAW logos appear.</li>
           <li>Newly discovered projects start in your first configured phase (Settings &gt; Phases) instead of a fixed Idea phase.</li>
+          <li>Preview songs never pick macOS ._ metadata files (which can't play); previews already pointing at one are repaired to the real file.</li>
         </ul>
       </description>
       <url>https://github.com/tea101/daw-project-manager/releases/tag/v3.0.3</url>

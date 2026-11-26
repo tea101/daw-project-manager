@@ -38,6 +38,7 @@ import 'sync_tombstones.dart';
 import 'root_relocations.dart';
 import 'same_file_merge.dart';
 import '../services/same_file_rows.dart';
+import '../services/preview_reference_repair.dart';
 import '../models/profile.dart';
 
 /// Replaces every pending deadline notification with the set planned from
@@ -1599,6 +1600,31 @@ class ProjectRepository {
     final updatedProject = project.copyWith(updatedAt: DateTime.now());
     await projectsBox.put(updatedProject.id, updatedProject);
     await rescheduleDeadlines();
+  }
+
+  /// Repairs preview references that point at macOS AppleDouble files
+  /// ("._Song.wav") — see [PreviewReferenceRepair]. Only those references
+  /// change; nothing on disk is touched. Returns how many projects changed.
+  ///
+  /// With [dryRun] nothing is saved; [onPlanned] still receives each
+  /// project's before/after, for reporting.
+  Future<int> repairAppleDoublePreviewReferences({
+    bool dryRun = false,
+    void Function(MusicProject before, MusicProject after)? onPlanned,
+  }) async {
+    var changed = 0;
+    for (final project in getAllProjects()) {
+      final repaired = PreviewReferenceRepair.repair(project);
+      if (repaired == null) continue;
+      changed++;
+      onPlanned?.call(project, repaired);
+      if (!dryRun) {
+        final saved = repaired.copyWith(updatedAt: DateTime.now());
+        await projectsBox.put(saved.id, saved);
+      }
+    }
+    if (changed > 0 && !dryRun) await rescheduleDeadlines();
+    return changed;
   }
 
   /// Re-plans deadline notifications from this profile's projects *and*
