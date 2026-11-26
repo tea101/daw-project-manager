@@ -4781,5 +4781,15 @@
   "scanCleanupBody": "{count, plural, one{{count} item da sua lista é um backup automático do WaveLab ou um arquivo oculto do macOS \"._\", não um projeto de verdade. Ele vai para Excluídos recentemente (Configurações > Pastas de projetos), onde você pode restaurá-lo por 30 dias.} other{{count} itens da sua lista são backups automáticos do WaveLab ou arquivos ocultos do macOS \"._\", não projetos de verdade. Eles vão para Excluídos recentemente (Configurações > Pastas de projetos), onde você pode restaurá-los por 30 dias.}} Os arquivos no disco não são tocados.",
   "scanCleanupKeptForReleases": "{count, plural, one{Mais {count} faz parte de um lançamento e fica.} other{Mais {count} fazem parte de um lançamento e ficam.}}",
   "scanCleanupConfirmButton": "Mover para Excluídos recentemente",
-  "scanCleanupDone": "{count, plural, one{{count} item movido para Excluídos recentemente.} other{{count} itens movidos para Excluídos recentemente.}}"
+  "scanCleanupDone": "{count, plural, one{{count} item movido para Excluídos recentemente.} other{{count} itens movidos para Excluídos recentemente.}}",
+  "previewCannotPlayTitle": "Não é possível reproduzir esta música de prévia",
+  "@previewCannotPlayTitle": {},
+  "previewMetadataFileMessage": "Este é um arquivo de metadados do macOS (o nome começa com \"._\"), não um áudio. Encontre a música real automaticamente, escolha outro arquivo ou remova a música de prévia.",
+  "@previewMetadataFileMessage": {},
+  "previewUnsupportedFormatMessage": "Este computador não consegue reproduzir este formato de áudio. Escolha outro arquivo (WAV, AIFF, MP3, M4A ou FLAC), encontre um automaticamente ou remova a música de prévia.",
+  "@previewUnsupportedFormatMessage": {},
+  "previewCannotPlayMessage": "O arquivo existe, mas não pôde ser reproduzido. Ele pode estar danificado, ainda sendo exportado ou em uma codificação que este computador não reproduz. Encontre uma música automaticamente, escolha outro arquivo ou remova a música de prévia.",
+  "@previewCannotPlayMessage": {},
+  "audioFileCannotPlay": "Este arquivo de áudio não pode ser reproduzido neste computador.",
+  "@audioFileCannotPlay": {}
 }

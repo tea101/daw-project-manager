@@ -9087,9 +9087,13 @@ class _PreviewSongDialogState extends ConsumerState<_PreviewSongDialog> {
   String? _autoDetectedPath;
 
   String? get _effectivePreviewPath =>
-      widget.project.previewSongPath?.isNotEmpty == true
-      ? widget.project.previewSongPath
-      : (_autoDetectedPath ?? widget.project.previewSongAutoPath);
+      _recoveredPath ??
+      (widget.project.previewSongPath?.isNotEmpty == true
+          ? widget.project.previewSongPath
+          : (_autoDetectedPath ?? widget.project.previewSongAutoPath));
+
+  // Set when a refused preview was replaced through the recovery dialog.
+  String? _recoveredPath;
 
   /// The one way volume changes in this dialog — both sliders and the
   /// ctrl+wheel handler call it, so the displayed level and the player can't
@@ -9364,16 +9368,47 @@ class _PreviewSongDialogState extends ConsumerState<_PreviewSongDialog> {
 
     try {
       await _audioPlayer.play(_currentSource(), volume: _volume);
-    } catch (e) {
-      if (mounted) {
+    } catch (_) {
+      await _offerPlaybackRecovery();
+    }
+  }
+
+  bool _recovering = false;
+
+  /// The player refused the file: explain why and offer find / pick / remove
+  /// instead of the raw platform error. A replacement plays here at once;
+  /// anything else closes the dialog, which has nothing left to play.
+  Future<void> _offerPlaybackRecovery() async {
+    final failedPath = _effectivePreviewPath;
+    if (!mounted || failedPath == null || _recovering) return;
+    _recovering = true;
+    try {
+      final recovered = await recoverUnplayablePreviewSong(
+        context,
+        ref,
+        widget.project,
+        failedPath,
+      );
+      if (!mounted) return;
+      if (recovered == null) {
+        Navigator.pop(context);
+        return;
+      }
+      setState(() {
+        _recoveredPath = recovered.path;
+        _isMono = false;
+        _monoFilePath = null;
+      });
+      try {
+        await _audioPlayer.play(DeviceFileSource(recovered.path), volume: _volume);
+      } catch (_) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showAppSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context)!.failedToPlayPreview(e.toString()),
-            ),
-          ),
+          SnackBar(content: Text(AppLocalizations.of(context)!.audioFileCannotPlay)),
         );
       }
+    } finally {
+      _recovering = false;
     }
   }
 
@@ -9398,16 +9433,8 @@ class _PreviewSongDialogState extends ConsumerState<_PreviewSongDialog> {
           await _audioPlayer.resume();
         }
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showAppSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context)!.failedToPlayPreview(e.toString()),
-            ),
-          ),
-        );
-      }
+    } catch (_) {
+      await _offerPlaybackRecovery();
     }
   }
 
@@ -10229,13 +10256,43 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
         ref.read(desktopPlayerCompletedProvider.notifier).increment();
       }
     });
-    _player.play(
-      DeviceFileSource(widget.request.resolvedPath),
-      // Non-null when the track was opened at a project marker rather
-      // than from the top.
-      position: widget.request.startAt, volume: _volume,
-    );
+    // startAt is non-null when the track was opened at a project marker
+    // rather than from the top.
+    _playRequest();
     _loadBackgroundData();
+  }
+
+  /// Plays [widget.request]; if the player refuses the file, offers the
+  /// preview-song recovery (find automatically, pick another, remove) in
+  /// place of the raw platform error.
+  Future<void> _playRequest() async {
+    final request = widget.request;
+    try {
+      await _player.play(
+        DeviceFileSource(request.resolvedPath),
+        position: request.startAt,
+        volume: _volume,
+      );
+    } catch (_) {
+      // A newer request has replaced this one meanwhile: its own play call
+      // reports for itself.
+      if (!mounted || widget.request.generation != request.generation) return;
+      final recovered = await recoverUnplayablePreviewSong(
+        context,
+        ref,
+        request.project,
+        request.resolvedPath,
+      );
+      if (!mounted || recovered == null) return;
+      ref.read(desktopPlayerProvider.notifier).play(
+            recovered.project.copyWith(
+              previewSongPath: recovered.path,
+              previewSongFileName: path.basename(recovered.path),
+            ),
+            recovered.path,
+            isQueuedPlayback: request.isQueuedPlayback,
+          );
+    }
   }
 
   @override
@@ -10262,10 +10319,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
         _fileInfo = null;
         _peaks = null;
       });
-      _player.play(
-        DeviceFileSource(widget.request.resolvedPath),
-        position: widget.request.startAt, volume: _volume,
-      );
+      _playRequest();
       _loadBackgroundData();
     }
   }
@@ -10393,21 +10447,30 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
   }
 
   Future<void> _togglePlayPause() async {
-    if (_isPlaying) {
-      await _player.pause();
-    } else {
-      if (_playbackEnded) {
-        setState(() => _playbackEnded = false);
-        await _player.stop();
-        await _player.play(
-          DeviceFileSource(_activePath),
-          position: _position > Duration.zero ? _position : null, volume: _volume,
-        );
-      } else if (_position == Duration.zero || _position >= _duration) {
-        await _player.play(DeviceFileSource(_activePath), volume: _volume);
+    try {
+      if (_isPlaying) {
+        await _player.pause();
       } else {
-        await _player.resume();
+        if (_playbackEnded) {
+          setState(() => _playbackEnded = false);
+          await _player.stop();
+          await _player.play(
+            DeviceFileSource(_activePath),
+            position: _position > Duration.zero ? _position : null, volume: _volume,
+          );
+        } else if (_position == Duration.zero || _position >= _duration) {
+          await _player.play(DeviceFileSource(_activePath), volume: _volume);
+        } else {
+          await _player.resume();
+        }
       }
+    } catch (_) {
+      // Never the raw platform error: the recovery was offered when the
+      // track first failed; here a plain sentence is enough.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showAppSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context)!.audioFileCannotPlay)),
+      );
     }
   }
 

@@ -10007,5 +10007,15 @@
         "type": "int"
       }
     }
-  }
+  },
+  "previewCannotPlayTitle": "Can't play this preview song",
+  "@previewCannotPlayTitle": {},
+  "previewMetadataFileMessage": "This is a macOS metadata file (its name starts with \"._\"), not audio. Find the real song automatically, choose another file, or remove the preview song.",
+  "@previewMetadataFileMessage": {},
+  "previewUnsupportedFormatMessage": "This computer can't play this audio format. Choose another file (WAV, AIFF, MP3, M4A or FLAC), find one automatically, or remove the preview song.",
+  "@previewUnsupportedFormatMessage": {},
+  "previewCannotPlayMessage": "The file is there but couldn't be played. It may be damaged, still being exported, or in an encoding this computer can't play. Find a preview song automatically, choose another file, or remove the preview song.",
+  "@previewCannotPlayMessage": {},
+  "audioFileCannotPlay": "This audio file can't be played on this computer.",
+  "@audioFileCannotPlay": {}
 }

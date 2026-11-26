@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,7 @@ import '../../models/music_project.dart';
 import '../../providers/providers.dart';
 import '../../services/mixdown_detector_service.dart';
 import '../../utils/mobile_utils.dart';
+import '../../utils/preview_playback_problem.dart';
 import '../app_snack_bar.dart';
 
 /// Audio extensions offered by every "select a preview song" picker. Single
@@ -42,17 +45,33 @@ enum PreviewNotFoundAction {
 /// scanning works at all on this platform: [MixdownDetectorService] returns
 /// null unconditionally on mobile (no filesystem to walk), so offering the
 /// button there would only ever produce "nothing found".
+///
+/// [problem] picks the explanation: a missing file (the default), a macOS
+/// "._" metadata file, a format this computer can't play, or a file the player
+/// refused. The actions are the same for all of them, and nothing changes
+/// until the user picks one.
 Future<PreviewNotFoundAction?> showPreviewSongNotFoundDialog(
   BuildContext context, {
   bool? canAutoFind,
+  PreviewPlaybackProblem problem = PreviewPlaybackProblem.missing,
 }) {
   final l10n = AppLocalizations.of(context)!;
   final showAutoFind = canAutoFind ?? !MobileUtils.isMobile();
+  final (title, message) = switch (problem) {
+    PreviewPlaybackProblem.missing =>
+      (l10n.previewSongFileNotFound, l10n.previewSongFileNotFoundMessage),
+    PreviewPlaybackProblem.metadataFile =>
+      (l10n.previewCannotPlayTitle, l10n.previewMetadataFileMessage),
+    PreviewPlaybackProblem.unsupportedFormat =>
+      (l10n.previewCannotPlayTitle, l10n.previewUnsupportedFormatMessage),
+    PreviewPlaybackProblem.cannotPlay =>
+      (l10n.previewCannotPlayTitle, l10n.previewCannotPlayMessage),
+  };
   return showDialog<PreviewNotFoundAction>(
     context: context,
     builder: (ctx) => AlertDialog(
-      title: Text(l10n.previewSongFileNotFound),
-      content: Text(l10n.previewSongFileNotFoundMessage),
+      title: Text(title),
+      content: Text(message),
       // Four actions never fit one row at dialog width; stacking them top-down
       // keeps the primary action nearest the content rather than stranded.
       actionsOverflowDirection: VerticalDirection.down,
@@ -141,12 +160,13 @@ class RecoveredPreview {
 Future<RecoveredPreview?> recoverMissingPreviewSong(
   BuildContext context,
   WidgetRef ref,
-  MusicProject project,
-) async {
+  MusicProject project, {
+  PreviewPlaybackProblem problem = PreviewPlaybackProblem.missing,
+}) async {
   final l10n = AppLocalizations.of(context)!;
   final messenger = ScaffoldMessenger.of(context);
 
-  final action = await showPreviewSongNotFoundDialog(context);
+  final action = await showPreviewSongNotFoundDialog(context, problem: problem);
   if (action == null) return null;
 
   // Which slot the dead path lived in decides where a replacement goes: a
@@ -214,4 +234,48 @@ Future<RecoveredPreview?> recoverMissingPreviewSong(
       ref.invalidate(allProjectsStreamProvider);
       return RecoveredPreview(updated, newPath);
   }
+}
+
+/// Whether [path] is the preview song stored on [project] (manual or
+/// auto-detected) — only then may a playback failure offer to change it. A
+/// release track or playlist file failing must never rewrite a project's
+/// preview.
+bool isStoredPreviewOf(MusicProject project, String path) =>
+    (project.previewSongPath?.isNotEmpty == true &&
+        p.equals(project.previewSongPath!, path)) ||
+    (project.previewSongAutoPath != null &&
+        p.equals(project.previewSongAutoPath!, path));
+
+/// The recovery offered when the player refuses a preview song, in place of
+/// the raw platform error ("PlatformException(DarwinAudioError, Failed to set
+/// source)").
+///
+/// Reads the project as stored (the caller's copy may have the playing path
+/// written into `previewSongPath`), and offers the same choices as for a
+/// missing file — Find automatically, Select new file, Remove — with an
+/// explanation of what went wrong. Nothing changes unless the user picks an
+/// action. When [path] isn't the project's stored preview, only a short
+/// message is shown and null returned.
+Future<RecoveredPreview?> recoverUnplayablePreviewSong(
+  BuildContext context,
+  WidgetRef ref,
+  MusicProject project,
+  String path,
+) async {
+  final l10n = AppLocalizations.of(context)!;
+  final messenger = ScaffoldMessenger.of(context);
+  final repo = await ref.read(repositoryProvider.future);
+  final stored = repo.getById(project.id) ?? project;
+  if (!context.mounted) return null;
+  if (!isStoredPreviewOf(stored, path)) {
+    messenger.showAppSnackBar(
+      SnackBar(content: Text(l10n.audioFileCannotPlay)),
+    );
+    return null;
+  }
+  final problem = classifyPreviewPlaybackProblem(
+    path,
+    fileExists: File(path).existsSync(),
+  );
+  return recoverMissingPreviewSong(context, ref, stored, problem: problem);
 }

@@ -4757,5 +4757,15 @@
   "scanCleanupBody": "{count, plural, one{{count} voce del tuo elenco è un backup automatico di WaveLab o un file macOS nascosto \"._\", non un vero progetto. Finirà in Eliminati di recente (Impostazioni > Cartelle dei progetti), dove puoi ripristinarla per 30 giorni.} other{{count} voci del tuo elenco sono backup automatici di WaveLab o file macOS nascosti \"._\", non veri progetti. Finiranno in Eliminati di recente (Impostazioni > Cartelle dei progetti), dove puoi ripristinarle per 30 giorni.}} I file sul disco non vengono toccati.",
   "scanCleanupKeptForReleases": "{count, plural, one{Un’altra voce fa parte di una release e resta.} other{Altre {count} voci fanno parte di una release e restano.}}",
   "scanCleanupConfirmButton": "Sposta in Eliminati di recente",
-  "scanCleanupDone": "{count, plural, one{{count} voce spostata in Eliminati di recente.} other{{count} voci spostate in Eliminati di recente.}}"
+  "scanCleanupDone": "{count, plural, one{{count} voce spostata in Eliminati di recente.} other{{count} voci spostate in Eliminati di recente.}}",
+  "previewCannotPlayTitle": "Impossibile riprodurre questo brano di anteprima",
+  "@previewCannotPlayTitle": {},
+  "previewMetadataFileMessage": "Questo è un file di metadati macOS (il nome inizia con \"._\"), non audio. Trova automaticamente il brano reale, scegli un altro file o rimuovi il brano di anteprima.",
+  "@previewMetadataFileMessage": {},
+  "previewUnsupportedFormatMessage": "Questo computer non può riprodurre questo formato audio. Scegli un altro file (WAV, AIFF, MP3, M4A o FLAC), cercane uno automaticamente o rimuovi il brano di anteprima.",
+  "@previewUnsupportedFormatMessage": {},
+  "previewCannotPlayMessage": "Il file esiste ma non è stato possibile riprodurlo. Potrebbe essere danneggiato, ancora in esportazione o in una codifica che questo computer non può riprodurre. Cerca un brano automaticamente, scegli un altro file o rimuovi il brano di anteprima.",
+  "@previewCannotPlayMessage": {},
+  "audioFileCannotPlay": "Questo file audio non può essere riprodotto su questo computer.",
+  "@audioFileCannotPlay": {}
 }

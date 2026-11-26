@@ -9862,4 +9862,19 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get pluginPresetsNoProjects =>
       'There are no Cubase projects in this profile.';
+
+  @override
+  String get previewCannotPlayTitle => 'Can\'t play this preview song';
+
+  @override
+  String get previewMetadataFileMessage => 'This is a macOS metadata file (its name starts with "._"), not audio. Find the real song automatically, choose another file, or remove the preview song.';
+
+  @override
+  String get previewUnsupportedFormatMessage => 'This computer can\'t play this audio format. Choose another file (WAV, AIFF, MP3, M4A or FLAC), find one automatically, or remove the preview song.';
+
+  @override
+  String get previewCannotPlayMessage => 'The file is there but couldn\'t be played. It may be damaged, still being exported, or in an encoding this computer can\'t play. Find a preview song automatically, choose another file, or remove the preview song.';
+
+  @override
+  String get audioFileCannotPlay => 'This audio file can\'t be played on this computer.';
 }

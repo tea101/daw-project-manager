@@ -3049,16 +3049,39 @@ class _PreviewSongPlayerState extends ConsumerState<_PreviewSongPlayer>
           }
         }
       }
-    } catch (e) {
-      if (mounted) {
+    } catch (_) {
+      await _offerPlaybackRecovery();
+    }
+  }
+
+  bool _recovering = false;
+
+  /// The player refused the preview: explain why and offer find / pick /
+  /// remove instead of the raw platform error. Nothing changes unless the
+  /// user picks an action.
+  Future<void> _offerPlaybackRecovery() async {
+    final failedPath = _effectivePreviewPath;
+    if (!mounted || failedPath == null || _recovering) return;
+    _recovering = true;
+    try {
+      final recovered = await recoverUnplayablePreviewSong(
+        context,
+        ref,
+        widget.project,
+        failedPath,
+      );
+      if (!mounted || recovered == null) return;
+      setState(() => _replacedPreviewPath = recovered.path);
+      try {
+        await _playOnCurrentPlatform(recovered.path);
+      } catch (_) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showAppSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context)!.failedToPlayPreview(e.toString()),
-            ),
-          ),
+          SnackBar(content: Text(AppLocalizations.of(context)!.audioFileCannotPlay)),
         );
       }
+    } finally {
+      _recovering = false;
     }
   }
 

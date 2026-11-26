@@ -9256,4 +9256,19 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get pluginPresetsNoProjects => '此配置文件中没有 Cubase 项目。';
+
+  @override
+  String get previewCannotPlayTitle => '无法播放此预览歌曲';
+
+  @override
+  String get previewMetadataFileMessage => '这是 macOS 元数据文件（名称以“._”开头），不是音频。请自动查找真正的歌曲、选择其他文件，或移除预览歌曲。';
+
+  @override
+  String get previewUnsupportedFormatMessage => '此电脑无法播放该音频格式。请选择其他文件（WAV、AIFF、MP3、M4A 或 FLAC）、自动查找，或移除预览歌曲。';
+
+  @override
+  String get previewCannotPlayMessage => '文件存在但无法播放。它可能已损坏、仍在导出中，或采用此电脑无法播放的编码。请自动查找预览歌曲、选择其他文件，或移除预览歌曲。';
+
+  @override
+  String get audioFileCannotPlay => '此音频文件无法在此电脑上播放。';
 }

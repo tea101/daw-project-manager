@@ -81,6 +81,19 @@ class MixdownDetectorService {
       !isAppleDoubleFile(path) &&
       audioExtensions.contains(p.extension(path).toLowerCase());
 
+  /// Whether this platform's player can play Ogg Vorbis. macOS and iOS play
+  /// through AVFoundation, which can't, so an `.ogg` there fails with the same
+  /// "Failed to set source" as an AppleDouble file. Overridable in tests.
+  static bool Function() platformPlaysOgg =
+      () => !(Platform.isMacOS || Platform.isIOS);
+
+  /// Whether automatic detection (scan, Auto-Find, "newer export found") may
+  /// offer [path]: playable audio, and not a format this platform can't play.
+  /// A file the user picks by hand is still accepted ([isPlayableAudioPath]).
+  static bool isAutoDetectableAudioPath(String path) =>
+      isPlayableAudioPath(path) &&
+      (p.extension(path).toLowerCase() != '.ogg' || platformPlaysOgg());
+
   /// The real file an AppleDouble companion describes: "dir/._Song.wav" ->
   /// "dir/Song.wav". Returns null when [path] is not an AppleDouble file.
   static String? appleDoubleTarget(String path) {
@@ -90,7 +103,7 @@ class MixdownDetectorService {
     return p.join(p.dirname(path), name);
   }
 
-  /// Playable audio files directly inside [dir], or an empty list when the
+  /// Auto-detectable audio files directly inside [dir], or an empty list when the
   /// folder can't be read (permissions, a drive just unmounted) — a read
   /// error must never abort detection for every other project.
   static List<File> _audioFilesIn(Directory dir) {
@@ -98,7 +111,7 @@ class MixdownDetectorService {
       return dir
           .listSync()
           .whereType<File>()
-          .where((f) => isPlayableAudioPath(f.path))
+          .where((f) => isAutoDetectableAudioPath(f.path))
           .toList();
     } on FileSystemException {
       return const [];

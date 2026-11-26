@@ -4757,5 +4757,15 @@
   "scanCleanupBody": "{count, plural, one{{count} Eintrag in deiner Liste ist ein automatisches WaveLab-Backup oder eine versteckte macOS-Datei „._“, kein echtes Projekt. Er kommt in „Zuletzt gelöscht“ (Einstellungen > Projektordner), wo du ihn 30 Tage lang wiederherstellen kannst.} other{{count} Einträge in deiner Liste sind automatische WaveLab-Backups oder versteckte macOS-Dateien „._“, keine echten Projekte. Sie kommen in „Zuletzt gelöscht“ (Einstellungen > Projektordner), wo du sie 30 Tage lang wiederherstellen kannst.}} Dateien auf der Festplatte bleiben unberührt.",
   "scanCleanupKeptForReleases": "{count, plural, one{{count} weiterer gehört zu einem Release und bleibt.} other{{count} weitere gehören zu einem Release und bleiben.}}",
   "scanCleanupConfirmButton": "In „Zuletzt gelöscht“ verschieben",
-  "scanCleanupDone": "{count, plural, one{{count} Eintrag nach „Zuletzt gelöscht“ verschoben.} other{{count} Einträge nach „Zuletzt gelöscht“ verschoben.}}"
+  "scanCleanupDone": "{count, plural, one{{count} Eintrag nach „Zuletzt gelöscht“ verschoben.} other{{count} Einträge nach „Zuletzt gelöscht“ verschoben.}}",
+  "previewCannotPlayTitle": "Dieser Vorschau-Song kann nicht abgespielt werden",
+  "@previewCannotPlayTitle": {},
+  "previewMetadataFileMessage": "Dies ist eine macOS-Metadatendatei (der Name beginnt mit \"._\"), kein Audio. Suchen Sie den echten Song automatisch, wählen Sie eine andere Datei oder entfernen Sie den Vorschau-Song.",
+  "@previewMetadataFileMessage": {},
+  "previewUnsupportedFormatMessage": "Dieser Computer kann dieses Audioformat nicht abspielen. Wählen Sie eine andere Datei (WAV, AIFF, MP3, M4A oder FLAC), suchen Sie automatisch oder entfernen Sie den Vorschau-Song.",
+  "@previewUnsupportedFormatMessage": {},
+  "previewCannotPlayMessage": "Die Datei ist vorhanden, konnte aber nicht abgespielt werden. Sie ist möglicherweise beschädigt, wird noch exportiert oder hat eine Kodierung, die dieser Computer nicht abspielen kann. Suchen Sie automatisch, wählen Sie eine andere Datei oder entfernen Sie den Vorschau-Song.",
+  "@previewCannotPlayMessage": {},
+  "audioFileCannotPlay": "Diese Audiodatei kann auf diesem Computer nicht abgespielt werden.",
+  "@audioFileCannotPlay": {}
 }
