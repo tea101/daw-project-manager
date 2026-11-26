@@ -15,6 +15,17 @@
   ],
   "releases": [
     {
+      "version": "3.0.2",
+      "date": "2026-11-26",
+      "highlights": {
+        "en": [
+          "Customised WaveLab build (unofficial, from the tea101 fork), not an official Bandpass Records release.",
+          "Recognises Steinberg WaveLab Pro audio montages (.mon) and projects (.wpr), opens them in WaveLab and shows WaveLab in the DAW filter.",
+          "Scans skip WaveLab backup folders (system.mon, Backup.mon) and macOS ._ files, and offer to move existing ones to Recently deleted after you confirm."
+        ]
+      }
+    },
+    {
       "version": "3.0.1",
       "date": "2026-10-30",
       "highlights": {

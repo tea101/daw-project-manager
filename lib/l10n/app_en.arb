@@ -9981,5 +9981,31 @@
   "pluginPresetsNoProjects": "There are no Cubase projects in this profile.",
   "@pluginPresetsNoProjects": {
     "description": "Snackbar when the profile has no Cubase projects"
+  },
+  "scanCleanupTitle": "Remove automatic backups and hidden duplicates?",
+  "scanCleanupBody": "{count, plural, one{{count} entry in your list is a WaveLab automatic backup or a hidden macOS \"._\" file, not a real project. It will move to Recently deleted (Settings > Project folders), where you can restore it for 30 days.} other{{count} entries in your list are WaveLab automatic backups or hidden macOS \"._\" files, not real projects. They will move to Recently deleted (Settings > Project folders), where you can restore them for 30 days.}} Files on disk are not touched.",
+  "@scanCleanupBody": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scanCleanupKeptForReleases": "{count, plural, one{{count} more is part of a release and stays.} other{{count} more are part of a release and stay.}}",
+  "@scanCleanupKeptForReleases": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "scanCleanupConfirmButton": "Move to Recently deleted",
+  "scanCleanupDone": "{count, plural, one{{count} entry moved to Recently deleted.} other{{count} entries moved to Recently deleted.}}",
+  "@scanCleanupDone": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
   }
 }

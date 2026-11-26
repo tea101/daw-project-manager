@@ -46,6 +46,7 @@ import '../utils/deep_scan.dart';
 import '../utils/grid_current_cell_parking.dart';
 import '../utils/rail_resize.dart';
 import '../utils/library_projects.dart';
+import '../utils/scan_exclusion_cleanup.dart';
 import '../utils/empty_projects_view.dart';
 import '../utils/mobile_utils.dart';
 import '../services/player_volume_store.dart';
@@ -1168,6 +1169,93 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
       _flashScanSuccess(deep: fullMetadata);
     } finally {
       if (mounted) setState(() => _scanning = false);
+    }
+    if (mounted) await _offerScanExclusionCleanup();
+  }
+
+  /// After a manual scan: offers to move entries the scanner now skips —
+  /// WaveLab automatic backups (in `Backup.mon`) and macOS `._` files — to
+  /// Recently deleted. Nothing is removed without the user's confirmation,
+  /// entries on a release stay, and no file on disk is touched.
+  Future<void> _offerScanExclusionCleanup() async {
+    final repo = await ref.read(repositoryProvider.future);
+    // Read from the repository, not releasesProvider: a stream nobody is
+    // listening to may not have a value yet, and an empty list here would
+    // offer a release's tracks for removal.
+    final cleanup = findScanExclusionCleanup(
+      repo.getAllProjects(),
+      releaseProtectedProjectIds(repo.getAllReleases()),
+    );
+    if (cleanup.removable.isEmpty || !mounted) return;
+
+    final l10n = AppLocalizations.of(context)!;
+    final paths = [for (final p in cleanup.removable) p.filePath]..sort();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.scanCleanupTitle),
+        content: SizedBox(
+          width: 560,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.scanCleanupBody(cleanup.removable.length)),
+              if (cleanup.keptForReleases.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  l10n.scanCleanupKeptForReleases(
+                    cleanup.keptForReleases.length,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 240),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final path in paths)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Text(
+                          path,
+                          style: Theme.of(ctx).textTheme.bodySmall,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(l10n.scanCleanupConfirmButton),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    await repo.deleteProjects([for (final p in cleanup.removable) p.id]);
+    ref.invalidate(allProjectsStreamProvider);
+    ref.invalidate(recentlyDeletedProvider);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showAppSnackBar(
+        SnackBar(
+          content: Text(l10n.scanCleanupDone(cleanup.removable.length)),
+        ),
+      );
     }
   }
 
