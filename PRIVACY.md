@@ -38,4 +38,4 @@ You can remove the app's access at any time at
 
 ## Contact
 
-Open an issue in this repository: <https://github.com/tea101/daw-project-manager/issues>
+Contact the maintainer through GitHub: <https://github.com/tea101>
