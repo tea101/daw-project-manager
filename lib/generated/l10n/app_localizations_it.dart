@@ -9946,4 +9946,19 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get pluginPresetsNoProjects =>
       'Non ci sono progetti Cubase in questo profilo.';
+
+  @override
+  String get previewCannotPlayTitle => 'Impossibile riprodurre questo brano di anteprima';
+
+  @override
+  String get previewMetadataFileMessage => 'Questo è un file di metadati macOS (il nome inizia con "._"), non audio. Trova automaticamente il brano reale, scegli un altro file o rimuovi il brano di anteprima.';
+
+  @override
+  String get previewUnsupportedFormatMessage => 'Questo computer non può riprodurre questo formato audio. Scegli un altro file (WAV, AIFF, MP3, M4A o FLAC), cercane uno automaticamente o rimuovi il brano di anteprima.';
+
+  @override
+  String get previewCannotPlayMessage => 'Il file esiste ma non è stato possibile riprodurlo. Potrebbe essere danneggiato, ancora in esportazione o in una codifica che questo computer non può riprodurre. Cerca un brano automaticamente, scegli un altro file o rimuovi il brano di anteprima.';
+
+  @override
+  String get audioFileCannotPlay => 'Questo file audio non può essere riprodotto su questo computer.';
 }

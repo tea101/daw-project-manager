@@ -20,6 +20,8 @@ String? getDawLogoPath(String? dawType) {
     'bitwig': 'bitwig-studio.png',
     'bitwig studio': 'bitwig-studio.png',
     'nuendo': 'nuendo.png',
+    'wavelab': 'wavelab.png',
+    'wavelab pro': 'wavelab.png',
     'maschine': 'maschine.png',
     'tracktion waveform': 'tracktion-waveform.png',
     'tracktion': 'tracktion-waveform.png',

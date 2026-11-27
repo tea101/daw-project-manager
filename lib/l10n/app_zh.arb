@@ -4752,5 +4752,20 @@
   "pluginPresetsAlreadyThere": "{count, plural, =1{1 个已在文件夹中,或在其他项目中重复} other{{count} 个已在文件夹中,或在其他项目中重复}}",
   "pluginPresetsUnsavable": "{count, plural, =1{1 个插件} other{{count} 个插件}}以无法保存为预设的格式保存状态:{names}",
   "pluginPresetsNotRead": "{count, plural, =1{有 1 个项目无法读取} other{有 {count} 个项目无法读取}}",
-  "pluginPresetsNoProjects": "此配置文件中没有 Cubase 项目。"
+  "pluginPresetsNoProjects": "此配置文件中没有 Cubase 项目。",
+  "scanCleanupTitle": "移除自动备份和隐藏的重复项？",
+  "scanCleanupBody": "列表中有 {count} 个条目是 WaveLab 的自动备份或 macOS 隐藏的“._”文件，并不是真正的项目。它们会移到“最近删除”（设置 > 项目文件夹），30 天内可以恢复。磁盘上的文件不会被改动。",
+  "scanCleanupKeptForReleases": "另有 {count} 个属于某个发行，会保留。",
+  "scanCleanupConfirmButton": "移到“最近删除”",
+  "scanCleanupDone": "已将 {count} 个条目移到“最近删除”。",
+  "previewCannotPlayTitle": "无法播放此预览歌曲",
+  "@previewCannotPlayTitle": {},
+  "previewMetadataFileMessage": "这是 macOS 元数据文件（名称以“._”开头），不是音频。请自动查找真正的歌曲、选择其他文件，或移除预览歌曲。",
+  "@previewMetadataFileMessage": {},
+  "previewUnsupportedFormatMessage": "此电脑无法播放该音频格式。请选择其他文件（WAV、AIFF、MP3、M4A 或 FLAC）、自动查找，或移除预览歌曲。",
+  "@previewUnsupportedFormatMessage": {},
+  "previewCannotPlayMessage": "文件存在但无法播放。它可能已损坏、仍在导出中，或采用此电脑无法播放的编码。请自动查找预览歌曲、选择其他文件，或移除预览歌曲。",
+  "@previewCannotPlayMessage": {},
+  "audioFileCannotPlay": "此音频文件无法在此电脑上播放。",
+  "@audioFileCannotPlay": {}
 }

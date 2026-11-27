@@ -8,6 +8,16 @@ void main() {
       expect(getDawLogoPath(''), isNull);
     });
 
+    test('WaveLab (.mon and .wpr) resolves to its own logo', () {
+      // MetadataExtractor reports both .mon (Montage) and .wpr (Audio
+      // Montage project) files as 'WaveLab'. They must get the WaveLab logo,
+      // never Tracktion Waveform's via the partial-match fallback.
+      expect(getDawLogoPath('WaveLab'), 'resources/daw/logos/wavelab.png');
+      expect(getDawLogoPath('WaveLab Pro'), 'resources/daw/logos/wavelab.png');
+      expect(getDawLogoPath('wavelab'), 'resources/daw/logos/wavelab.png');
+      expect(getDawLogoPath('Waveform'), 'resources/daw/logos/tracktion-waveform.png');
+    });
+
     test('unrecognized dawType returns null', () {
       expect(getDawLogoPath('Some Unknown DAW'), isNull);
     });

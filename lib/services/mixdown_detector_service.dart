@@ -45,7 +45,10 @@ class MixdownDetectorService {
     'Cubase':        ['Mixdown'],
     'Nuendo':        ['Mixdown'],
     'Studio One':    ['Mixdown', 'Mix', 'Exports'],
-    'Pro Tools':     ['Bounced Files', 'Bounce', 'Audio Files'],
+    // Not 'Audio Files': that is where Pro Tools keeps recorded and imported
+    // clips, so "newest file" there is a single track (a tom, a vocal take),
+    // never a mix. It was a default up to 3.0.2.
+    'Pro Tools':     ['Bounced Files', 'Bounce'],
     'Reaper':        ['Renders', 'Render', 'Mixdown'],
     'FL Studio':     ['Mixdown', 'Exports', 'Export'],
     'Bitwig Studio': ['bounce', 'Bounces', 'Mixdown', 'Exports'],
@@ -67,6 +70,69 @@ class MixdownDetectorService {
   /// whose `dawType` is null or not one of [dawFolders]' keys — mirrors how
   /// those projects already fall back to [fallbackFolders].
   static const String otherDawKey = '_other';
+
+  /// Pro Tools' folder of recorded and imported clips. An automatic preview
+  /// found there (before 3.0.3 it was a default mixdown folder) is a single
+  /// track, not a mix.
+  static const String proToolsAudioFilesFolder = 'Audio Files';
+
+  /// True for a macOS AppleDouble metadata file ("._Song.wav"). macOS writes
+  /// one beside every file it copies to a non-Apple volume (exFAT, FAT32,
+  /// network shares). It carries the real file's audio extension but holds
+  /// only a few KB of Finder metadata, so it can't be played: AVFoundation
+  /// rejects it with "Failed to set source".
+  static bool isAppleDoubleFile(String path) => p.basename(path).startsWith('._');
+
+  /// Whether [path] names something the app may offer as a preview song: an
+  /// [audioExtensions] file that is not an AppleDouble companion.
+  static bool isPlayableAudioPath(String path) =>
+      !isAppleDoubleFile(path) &&
+      audioExtensions.contains(p.extension(path).toLowerCase());
+
+  /// Whether this platform's player can play Ogg Vorbis. macOS and iOS play
+  /// through AVFoundation, which can't, so an `.ogg` there fails with the same
+  /// "Failed to set source" as an AppleDouble file. Overridable in tests.
+  static bool Function() platformPlaysOgg =
+      () => !(Platform.isMacOS || Platform.isIOS);
+
+  /// Whether automatic detection (scan, Auto-Find, "newer export found") may
+  /// offer [path]: playable audio, and not a format this platform can't play.
+  /// A file the user picks by hand is still accepted ([isPlayableAudioPath]).
+  static bool isAutoDetectableAudioPath(String path) =>
+      isPlayableAudioPath(path) &&
+      (p.extension(path).toLowerCase() != '.ogg' || platformPlaysOgg());
+
+  /// The real file an AppleDouble companion describes: "dir/._Song.wav" ->
+  /// "dir/Song.wav". Returns null when [path] is not an AppleDouble file.
+  static String? appleDoubleTarget(String path) {
+    if (!isAppleDoubleFile(path)) return null;
+    final name = p.basename(path).substring(2);
+    if (name.isEmpty) return null;
+    return p.join(p.dirname(path), name);
+  }
+
+  /// Auto-detectable audio files directly inside [dir], or an empty list when the
+  /// folder can't be read (permissions, a drive just unmounted) — a read
+  /// error must never abort detection for every other project.
+  static List<File> _audioFilesIn(Directory dir) {
+    try {
+      return dir
+          .listSync()
+          .whereType<File>()
+          .where((f) => isAutoDetectableAudioPath(f.path))
+          .toList();
+    } on FileSystemException {
+      return const [];
+    }
+  }
+
+  static DateTime _modified(File f) {
+    try {
+      return f.lastModifiedSync();
+    } on FileSystemException {
+      return DateTime.fromMillisecondsSinceEpoch(0);
+    }
+  }
 
   /// Returns the most recently modified audio file found in the project's
   /// mixdown folder, or null if nothing is found.
@@ -92,17 +158,10 @@ class MixdownDetectorService {
     )) {
       if (!dir.existsSync()) continue;
 
-      final files = dir
-          .listSync()
-          .whereType<File>()
-          .where((f) =>
-              audioExtensions.contains(p.extension(f.path).toLowerCase()))
-          .toList();
-
+      final files = _audioFilesIn(dir);
       if (files.isEmpty) continue;
 
-      files.sort((a, b) =>
-          b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+      files.sort((a, b) => _modified(b).compareTo(_modified(a)));
       return files.first;
     }
 
@@ -123,18 +182,17 @@ class MixdownDetectorService {
     if (_driveDownloadFileRe.hasMatch(p.basename(currentPath))) return null;
     final current = File(currentPath);
     if (!current.existsSync()) return null;
-    final currentModified = current.lastModifiedSync();
-    final files = current.parent
-        .listSync()
-        .whereType<File>()
-        .where((f) => audioExtensions.contains(p.extension(f.path).toLowerCase()))
-        .toList();
+    final currentModified = _modified(current);
+    final files = _audioFilesIn(current.parent);
     if (files.isEmpty) return null;
-    files.sort((a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+    files.sort((a, b) => _modified(b).compareTo(_modified(a)));
     final newest = files.first;
     if (p.equals(newest.path, current.path)) return null;
     if (ignoredPath != null && p.equals(newest.path, ignoredPath)) return null;
-    if (newest.lastModifiedSync().isAfter(currentModified)) return newest;
+    // An AppleDouble "current" is not a real preview (see
+    // PreviewReferenceRepair) — any genuine file beats it.
+    if (isAppleDoubleFile(current.path)) return newest;
+    if (_modified(newest).isAfter(currentModified)) return newest;
     return null;
   }
 

@@ -15367,6 +15367,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'There are no Cubase projects in this profile.'**
   String get pluginPresetsNoProjects;
+
+  /// No description provided for @previewCannotPlayTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Can\'t play this preview song'**
+  String get previewCannotPlayTitle;
+
+  /// No description provided for @previewMetadataFileMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This is a macOS metadata file (its name starts with "._"), not audio. Find the real song automatically, choose another file, or remove the preview song.'**
+  String get previewMetadataFileMessage;
+
+  /// No description provided for @previewUnsupportedFormatMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'This computer can\'t play this audio format. Choose another file (WAV, AIFF, MP3, M4A or FLAC), find one automatically, or remove the preview song.'**
+  String get previewUnsupportedFormatMessage;
+
+  /// No description provided for @previewCannotPlayMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'The file is there but couldn\'t be played. It may be damaged, still being exported, or in an encoding this computer can\'t play. Find a preview song automatically, choose another file, or remove the preview song.'**
+  String get previewCannotPlayMessage;
+
+  /// No description provided for @audioFileCannotPlay.
+  ///
+  /// In en, this message translates to:
+  /// **'This audio file can\'t be played on this computer.'**
+  String get audioFileCannotPlay;
 }
 
 class _AppLocalizationsDelegate

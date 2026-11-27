@@ -38,6 +38,7 @@ import 'sync_tombstones.dart';
 import 'root_relocations.dart';
 import 'same_file_merge.dart';
 import '../services/same_file_rows.dart';
+import '../services/preview_reference_repair.dart';
 import '../models/profile.dart';
 
 /// Replaces every pending deadline notification with the set planned from
@@ -286,6 +287,12 @@ class ProjectRepository {
     'Finished',
   ];
   String get _customPhasesKey => '${profileId}_phases';
+
+  /// Phase given to a project the scanner finds for the first time: the
+  /// first configured phase, or 'Idea' when none is configured.
+  @visibleForTesting
+  static String newProjectStatus(List<String> phases) =>
+      phases.isNotEmpty ? phases.first : 'Idea';
 
   List<String> getCustomPhases() {
     final raw = appSettingsBox.get(_customPhasesKey);
@@ -1188,7 +1195,10 @@ class ProjectRepository {
             fileExtension: ext,
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
-            status: 'Idea',
+            // A newly found project starts in the first phase the user has
+            // configured (Settings > Phases), not a fixed 'Idea' that may no
+            // longer exist. Falls back to 'Idea' if the list is somehow empty.
+            status: newProjectStatus(getCustomPhases()),
             bpm: bpm,
             musicalKey: key,
             dawType: dawType,
@@ -1590,6 +1600,44 @@ class ProjectRepository {
     final updatedProject = project.copyWith(updatedAt: DateTime.now());
     await projectsBox.put(updatedProject.id, updatedProject);
     await rescheduleDeadlines();
+  }
+
+  /// The mixdown folder names the user added themselves for [dawType]:
+  /// the global list plus that DAW's own. Passed to [PreviewReferenceRepair]
+  /// so a folder the user chose is never second-guessed.
+  List<String> userMixdownFoldersFor(String? dawType) => [
+        ...getCustomMixdownFolders(),
+        ...?getCustomMixdownFoldersByDaw()[dawType ?? '_other'],
+      ];
+
+  /// Repairs preview references automatic detection should never have made
+  /// — see [PreviewReferenceRepair]: macOS AppleDouble files ("._Song.wav"),
+  /// and Pro Tools auto previews in "Audio Files". Valid manual previews are
+  /// never touched, and nothing on disk changes. Returns how many projects
+  /// changed.
+  ///
+  /// With [dryRun] nothing is saved; [onPlanned] still receives each
+  /// project's before/after, for reporting.
+  Future<int> repairPreviewReferences({
+    bool dryRun = false,
+    void Function(MusicProject before, MusicProject after)? onPlanned,
+  }) async {
+    var changed = 0;
+    for (final project in getAllProjects()) {
+      final repaired = PreviewReferenceRepair.repair(
+        project,
+        userMixdownFolders: userMixdownFoldersFor(project.dawType),
+      );
+      if (repaired == null) continue;
+      changed++;
+      onPlanned?.call(project, repaired);
+      if (!dryRun) {
+        final saved = repaired.copyWith(updatedAt: DateTime.now());
+        await projectsBox.put(saved.id, saved);
+      }
+    }
+    if (changed > 0 && !dryRun) await rescheduleDeadlines();
+    return changed;
   }
 
   /// Re-plans deadline notifications from this profile's projects *and*

@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 import 'package:daw_project_manager/services/mixdown_detector_service.dart';
 import '../helpers/test_factories.dart';
 
@@ -473,6 +474,123 @@ void main() {
         MixdownDetectorService.audioPickerExtensions.toSet(),
         MixdownDetectorService.audioExtensions.map((e) => e.substring(1)).toSet(),
       );
+    });
+  });
+
+  // Regression: v3.0.2 picked "._Tom2_19-02.wav" (a macOS AppleDouble
+  // metadata file) as a preview, and the player failed with
+  // "PlatformException(DarwinAudioError, Failed to set source)".
+  test('Pro Tools: "Audio Files" (recorded clips) is never a mixdown folder', () async {
+    final dir = await Directory.systemTemp.createTemp('pt_audio_files_');
+    try {
+      final audio = Directory(p.join(dir.path, 'Audio Files'))..createSync();
+      File(p.join(audio.path, 'Tom2_19-02.wav')).writeAsBytesSync([1]);
+      final project = TestFactories.makeProject(
+        filePath: p.join(dir.path, 'Session.ptx'),
+        dawType: 'Pro Tools',
+      );
+      expect(MixdownDetectorService.findLatestMixdown(project), isNull);
+      expect(MixdownDetectorService.dawFolders['Pro Tools'],
+          isNot(contains('Audio Files')));
+
+      final bounced = Directory(p.join(dir.path, 'Bounced Files'))..createSync();
+      File(p.join(bounced.path, 'Session Mix.wav')).writeAsBytesSync([1]);
+      expect(p.basename(MixdownDetectorService.findLatestMixdown(project)!.path),
+          'Session Mix.wav');
+
+      // Still available when the user asks for it.
+      expect(
+        MixdownDetectorService.findLatestMixdown(project,
+                customFoldersByDaw: {'Pro Tools': ['Audio Files']})!
+            .path,
+        contains('Tom2_19-02.wav'),
+      );
+    } finally {
+      await dir.delete(recursive: true);
+    }
+  });
+
+  group('MixdownDetectorService: AppleDouble files are never audio', () {
+    test('isAppleDoubleFile / isPlayableAudioPath', () {
+      expect(MixdownDetectorService.isAppleDoubleFile(p.join('a', '._Tom2_19-02.wav')), isTrue);
+      expect(MixdownDetectorService.isAppleDoubleFile(p.join('a', 'Tom2_19-02.wav')), isFalse);
+      expect(MixdownDetectorService.isAppleDoubleFile(p.join('._dir', 'Song.wav')), isFalse);
+      expect(MixdownDetectorService.isAppleDoubleFile(p.join('a', 'My._Song.wav')), isFalse);
+      expect(MixdownDetectorService.isPlayableAudioPath(p.join('a', '._Song.wav')), isFalse);
+      expect(MixdownDetectorService.isPlayableAudioPath(p.join('a', 'Song.WAV')), isTrue);
+      expect(MixdownDetectorService.isPlayableAudioPath(p.join('a', 'Song.txt')), isFalse);
+    });
+
+    test('appleDoubleTarget names the real file', () {
+      expect(
+        MixdownDetectorService.appleDoubleTarget(p.join('x', '._Song.wav')),
+        p.join('x', 'Song.wav'),
+      );
+      expect(MixdownDetectorService.appleDoubleTarget(p.join('x', 'Song.wav')), isNull);
+      expect(MixdownDetectorService.appleDoubleTarget(p.join('x', '._')), isNull);
+    });
+
+    test('findLatestMixdown skips a newer AppleDouble companion', () async {
+      final dir = await Directory.systemTemp.createTemp('appledouble_mix_');
+      try {
+        final mix = Directory(p.join(dir.path, 'Mixdown'))..createSync();
+        final real = File(p.join(mix.path, 'Tom2_19-02.wav'))..writeAsBytesSync([1, 2, 3]);
+        final ghost = File(p.join(mix.path, '._Tom2_19-02.wav'))..writeAsBytesSync([0]);
+        real.setLastModifiedSync(DateTime(2024, 1, 1));
+        ghost.setLastModifiedSync(DateTime(2025, 1, 1));
+        final project = TestFactories.makeProject(
+          filePath: p.join(dir.path, 'Song.cpr'),
+          dawType: 'Cubase',
+        );
+        final result = MixdownDetectorService.findLatestMixdown(project);
+        expect(result, isNotNull);
+        expect(p.basename(result!.path), 'Tom2_19-02.wav');
+      } finally {
+        await dir.delete(recursive: true);
+      }
+    });
+
+    test('findLatestMixdown finds nothing when only AppleDouble files exist', () async {
+      final dir = await Directory.systemTemp.createTemp('appledouble_only_');
+      try {
+        final mix = Directory(p.join(dir.path, 'Mixdown'))..createSync();
+        File(p.join(mix.path, '._Song.wav')).writeAsBytesSync([0]);
+        final project = TestFactories.makeProject(
+          filePath: p.join(dir.path, 'Song.mon'),
+          dawType: 'WaveLab',
+        );
+        expect(MixdownDetectorService.findLatestMixdown(project), isNull);
+      } finally {
+        await dir.delete(recursive: true);
+      }
+    });
+
+    test('findNewerFileInSameFolder never offers an AppleDouble file', () async {
+      final dir = await Directory.systemTemp.createTemp('appledouble_newer_');
+      try {
+        final current = File(p.join(dir.path, 'Song v1.wav'))..writeAsBytesSync([1]);
+        final ghost = File(p.join(dir.path, '._Song v1.wav'))..writeAsBytesSync([0]);
+        current.setLastModifiedSync(DateTime(2024, 1, 1));
+        ghost.setLastModifiedSync(DateTime(2025, 1, 1));
+        expect(MixdownDetectorService.findNewerFileInSameFolder(current.path), isNull);
+      } finally {
+        await dir.delete(recursive: true);
+      }
+    });
+
+    test('findNewerFileInSameFolder replaces an AppleDouble current with the real file', () async {
+      final dir = await Directory.systemTemp.createTemp('appledouble_cur_');
+      try {
+        final real = File(p.join(dir.path, 'Song.wav'))..writeAsBytesSync([1]);
+        final ghost = File(p.join(dir.path, '._Song.wav'))..writeAsBytesSync([0]);
+        real.setLastModifiedSync(DateTime(2024, 1, 1));
+        ghost.setLastModifiedSync(DateTime(2025, 1, 1));
+        final result = MixdownDetectorService.findNewerFileInSameFolder(ghost.path);
+        expect(result, isNotNull);
+        expect(p.basename(result!.path), 'Song.wav');
+      } finally {
+        await dir.delete(recursive: true);
+      }
     });
   });
 }

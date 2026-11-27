@@ -28,6 +28,7 @@ import '../services/release_artwork_service.dart';
 import '../services/audio_analysis_service.dart';
 import '../services/metadata_extractor.dart';
 import '../services/mixdown_detector_service.dart';
+import '../services/preview_reference_repair.dart';
 import 'row_click_selection.dart';
 import 'widgets/project_info_columns.dart';
 import 'widgets/on_art_marker.dart';
@@ -46,6 +47,7 @@ import '../utils/deep_scan.dart';
 import '../utils/grid_current_cell_parking.dart';
 import '../utils/rail_resize.dart';
 import '../utils/library_projects.dart';
+import '../utils/scan_exclusion_cleanup.dart';
 import '../utils/empty_projects_view.dart';
 import '../utils/mobile_utils.dart';
 import '../services/player_volume_store.dart';
@@ -1109,6 +1111,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
       // Auto-detect preview songs for projects that have neither a manual nor
       // a previously auto-detected path. Runs after the full scan so all upserts
       // are committed before we read back the project list.
+      // First repair previews earlier versions detected wrongly — macOS
+      // AppleDouble files ("._Song.wav"), which never play, and Pro Tools
+      // "Audio Files" tracks — so the loop below detects them afresh.
+      await repo.repairPreviewReferences();
       final customFolders = ref.read(customMixdownFoldersProvider).value;
       final customFoldersByDaw = ref
           .read(customMixdownFoldersByDawProvider)
@@ -1168,6 +1174,93 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
       _flashScanSuccess(deep: fullMetadata);
     } finally {
       if (mounted) setState(() => _scanning = false);
+    }
+    if (mounted) await _offerScanExclusionCleanup();
+  }
+
+  /// After a manual scan: offers to move entries the scanner now skips —
+  /// WaveLab automatic backups (in `Backup.mon`) and macOS `._` files — to
+  /// Recently deleted. Nothing is removed without the user's confirmation,
+  /// entries on a release stay, and no file on disk is touched.
+  Future<void> _offerScanExclusionCleanup() async {
+    final repo = await ref.read(repositoryProvider.future);
+    // Read from the repository, not releasesProvider: a stream nobody is
+    // listening to may not have a value yet, and an empty list here would
+    // offer a release's tracks for removal.
+    final cleanup = findScanExclusionCleanup(
+      repo.getAllProjects(),
+      releaseProtectedProjectIds(repo.getAllReleases()),
+    );
+    if (cleanup.removable.isEmpty || !mounted) return;
+
+    final l10n = AppLocalizations.of(context)!;
+    final paths = [for (final p in cleanup.removable) p.filePath]..sort();
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.scanCleanupTitle),
+        content: SizedBox(
+          width: 560,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.scanCleanupBody(cleanup.removable.length)),
+              if (cleanup.keptForReleases.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(
+                  l10n.scanCleanupKeptForReleases(
+                    cleanup.keptForReleases.length,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 12),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 240),
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final path in paths)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 2),
+                        child: Text(
+                          path,
+                          style: Theme.of(ctx).textTheme.bodySmall,
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.cancel),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(
+              backgroundColor: Colors.red.shade700,
+              foregroundColor: Colors.white,
+            ),
+            child: Text(l10n.scanCleanupConfirmButton),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    await repo.deleteProjects([for (final p in cleanup.removable) p.id]);
+    ref.invalidate(allProjectsStreamProvider);
+    ref.invalidate(recentlyDeletedProvider);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showAppSnackBar(
+        SnackBar(
+          content: Text(l10n.scanCleanupDone(cleanup.removable.length)),
+        ),
+      );
     }
   }
 
@@ -5974,6 +6067,20 @@ Future<void> playProjectPreview(
   final customFoldersByDaw = ref
       .read(customMixdownFoldersByDawProvider)
       .value;
+  // A preview earlier versions detected wrongly — a macOS AppleDouble file
+  // ("._Song.wav") that can never play, or a Pro Tools "Audio Files" track —
+  // is repaired first, so detection below finds a genuine one.
+  final repo0 = await ref.read(repositoryProvider.future);
+  final repairedPreview = PreviewReferenceRepair.repair(
+    project,
+    userMixdownFolders: repo0.userMixdownFoldersFor(project.dawType),
+  );
+  if (repairedPreview != null) {
+    final repo = repo0;
+    await repo.updateProject(repairedPreview);
+    project = repairedPreview;
+    ref.invalidate(allProjectsStreamProvider);
+  }
   var effectivePath = project.previewSongPath?.isNotEmpty == true
       ? project.previewSongPath!
       : project.previewSongAutoPath;
@@ -7159,6 +7266,7 @@ class _PlutoProjectsTableState extends ConsumerState<_PlutoProjectsTable>
   Future<void> _setPreviewSong(MusicProject project, String filePath) async {
     final ext = filePath.split('.').last.toLowerCase();
     if (!_audioExtensions.contains('.$ext')) return;
+    if (MixdownDetectorService.isAppleDoubleFile(filePath)) return;
     final repo = await ref.read(repositoryProvider.future);
     final updated = project.copyWith(
       previewSongPath: filePath,
@@ -8817,7 +8925,8 @@ class _PlutoProjectsTableState extends ConsumerState<_PlutoProjectsTable>
         for (final xFile in detail.files) {
           final path = xFile.path;
           final ext = '.${path.split('.').last.toLowerCase()}';
-          if (_audioExtensions.contains(ext)) {
+          if (_audioExtensions.contains(ext) &&
+              !MixdownDetectorService.isAppleDoubleFile(path)) {
             _setPreviewSong(targetProject, path);
             return;
           }
@@ -8983,9 +9092,13 @@ class _PreviewSongDialogState extends ConsumerState<_PreviewSongDialog> {
   String? _autoDetectedPath;
 
   String? get _effectivePreviewPath =>
-      widget.project.previewSongPath?.isNotEmpty == true
-      ? widget.project.previewSongPath
-      : (_autoDetectedPath ?? widget.project.previewSongAutoPath);
+      _recoveredPath ??
+      (widget.project.previewSongPath?.isNotEmpty == true
+          ? widget.project.previewSongPath
+          : (_autoDetectedPath ?? widget.project.previewSongAutoPath));
+
+  // Set when a refused preview was replaced through the recovery dialog.
+  String? _recoveredPath;
 
   /// The one way volume changes in this dialog — both sliders and the
   /// ctrl+wheel handler call it, so the displayed level and the player can't
@@ -9260,16 +9373,47 @@ class _PreviewSongDialogState extends ConsumerState<_PreviewSongDialog> {
 
     try {
       await _audioPlayer.play(_currentSource(), volume: _volume);
-    } catch (e) {
-      if (mounted) {
+    } catch (_) {
+      await _offerPlaybackRecovery();
+    }
+  }
+
+  bool _recovering = false;
+
+  /// The player refused the file: explain why and offer find / pick / remove
+  /// instead of the raw platform error. A replacement plays here at once;
+  /// anything else closes the dialog, which has nothing left to play.
+  Future<void> _offerPlaybackRecovery() async {
+    final failedPath = _effectivePreviewPath;
+    if (!mounted || failedPath == null || _recovering) return;
+    _recovering = true;
+    try {
+      final recovered = await recoverUnplayablePreviewSong(
+        context,
+        ref,
+        widget.project,
+        failedPath,
+      );
+      if (!mounted) return;
+      if (recovered == null) {
+        Navigator.pop(context);
+        return;
+      }
+      setState(() {
+        _recoveredPath = recovered.path;
+        _isMono = false;
+        _monoFilePath = null;
+      });
+      try {
+        await _audioPlayer.play(DeviceFileSource(recovered.path), volume: _volume);
+      } catch (_) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showAppSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context)!.failedToPlayPreview(e.toString()),
-            ),
-          ),
+          SnackBar(content: Text(AppLocalizations.of(context)!.audioFileCannotPlay)),
         );
       }
+    } finally {
+      _recovering = false;
     }
   }
 
@@ -9294,16 +9438,8 @@ class _PreviewSongDialogState extends ConsumerState<_PreviewSongDialog> {
           await _audioPlayer.resume();
         }
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showAppSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context)!.failedToPlayPreview(e.toString()),
-            ),
-          ),
-        );
-      }
+    } catch (_) {
+      await _offerPlaybackRecovery();
     }
   }
 
@@ -10125,13 +10261,43 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
         ref.read(desktopPlayerCompletedProvider.notifier).increment();
       }
     });
-    _player.play(
-      DeviceFileSource(widget.request.resolvedPath),
-      // Non-null when the track was opened at a project marker rather
-      // than from the top.
-      position: widget.request.startAt, volume: _volume,
-    );
+    // startAt is non-null when the track was opened at a project marker
+    // rather than from the top.
+    _playRequest();
     _loadBackgroundData();
+  }
+
+  /// Plays [widget.request]; if the player refuses the file, offers the
+  /// preview-song recovery (find automatically, pick another, remove) in
+  /// place of the raw platform error.
+  Future<void> _playRequest() async {
+    final request = widget.request;
+    try {
+      await _player.play(
+        DeviceFileSource(request.resolvedPath),
+        position: request.startAt,
+        volume: _volume,
+      );
+    } catch (_) {
+      // A newer request has replaced this one meanwhile: its own play call
+      // reports for itself.
+      if (!mounted || widget.request.generation != request.generation) return;
+      final recovered = await recoverUnplayablePreviewSong(
+        context,
+        ref,
+        request.project,
+        request.resolvedPath,
+      );
+      if (!mounted || recovered == null) return;
+      ref.read(desktopPlayerProvider.notifier).play(
+            recovered.project.copyWith(
+              previewSongPath: recovered.path,
+              previewSongFileName: path.basename(recovered.path),
+            ),
+            recovered.path,
+            isQueuedPlayback: request.isQueuedPlayback,
+          );
+    }
   }
 
   @override
@@ -10158,10 +10324,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
         _fileInfo = null;
         _peaks = null;
       });
-      _player.play(
-        DeviceFileSource(widget.request.resolvedPath),
-        position: widget.request.startAt, volume: _volume,
-      );
+      _playRequest();
       _loadBackgroundData();
     }
   }
@@ -10289,21 +10452,30 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
   }
 
   Future<void> _togglePlayPause() async {
-    if (_isPlaying) {
-      await _player.pause();
-    } else {
-      if (_playbackEnded) {
-        setState(() => _playbackEnded = false);
-        await _player.stop();
-        await _player.play(
-          DeviceFileSource(_activePath),
-          position: _position > Duration.zero ? _position : null, volume: _volume,
-        );
-      } else if (_position == Duration.zero || _position >= _duration) {
-        await _player.play(DeviceFileSource(_activePath), volume: _volume);
+    try {
+      if (_isPlaying) {
+        await _player.pause();
       } else {
-        await _player.resume();
+        if (_playbackEnded) {
+          setState(() => _playbackEnded = false);
+          await _player.stop();
+          await _player.play(
+            DeviceFileSource(_activePath),
+            position: _position > Duration.zero ? _position : null, volume: _volume,
+          );
+        } else if (_position == Duration.zero || _position >= _duration) {
+          await _player.play(DeviceFileSource(_activePath), volume: _volume);
+        } else {
+          await _player.resume();
+        }
       }
+    } catch (_) {
+      // Never the raw platform error: the recovery was offered when the
+      // track first failed; here a plain sentence is enough.
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showAppSnackBar(
+        SnackBar(content: Text(AppLocalizations.of(context)!.audioFileCannotPlay)),
+      );
     }
   }
 

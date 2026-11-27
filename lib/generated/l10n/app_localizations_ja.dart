@@ -9354,4 +9354,19 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get pluginPresetsNoProjects => 'このプロファイルにCubaseプロジェクトはありません。';
+
+  @override
+  String get previewCannotPlayTitle => 'このプレビュー曲を再生できません';
+
+  @override
+  String get previewMetadataFileMessage => 'これは音声ではなく macOS のメタデータファイル（名前が「._」で始まる）です。本来の曲を自動で探すか、別のファイルを選ぶか、プレビュー曲を削除してください。';
+
+  @override
+  String get previewUnsupportedFormatMessage => 'このコンピュータではこの音声形式を再生できません。別のファイル（WAV、AIFF、MP3、M4A、FLAC）を選ぶか、自動で探すか、プレビュー曲を削除してください。';
+
+  @override
+  String get previewCannotPlayMessage => 'ファイルはありますが再生できませんでした。破損している、書き出し中である、またはこのコンピュータで再生できないエンコードの可能性があります。自動で探すか、別のファイルを選ぶか、プレビュー曲を削除してください。';
+
+  @override
+  String get audioFileCannotPlay => 'この音声ファイルはこのコンピュータで再生できません。';
 }

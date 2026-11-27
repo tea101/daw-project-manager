@@ -55,6 +55,7 @@ import '../services/metadata_extractor.dart';
 import '../services/midi/midi_clip_service.dart';
 import '../services/metadata_sidecar_service.dart';
 import '../services/mixdown_detector_service.dart';
+import '../services/preview_reference_repair.dart';
 import '../services/project_text_export_service.dart';
 import '../services/scanner_service.dart';
 import '../services/track_duration_probe_service.dart';
@@ -2512,9 +2513,43 @@ class _PreviewSongPlayerState extends ConsumerState<_PreviewSongPlayer>
 
   String? get _effectivePreviewPath =>
       _replacedPreviewPath ??
-      (widget.project.previewSongPath?.isNotEmpty == true
-          ? widget.project.previewSongPath
-          : (_autoDetectedPath ?? widget.project.previewSongAutoPath));
+      (_previewProject.previewSongPath?.isNotEmpty == true
+          ? _previewProject.previewSongPath
+          : (_autoDetectedPath ?? _previewProject.previewSongAutoPath));
+
+  // [widget.project] with any wrongly detected preview reference repaired
+  // (see PreviewReferenceRepair) — an AppleDouble file can never play. Recomputed only when the page is
+  // handed a different project object.
+  MusicProject? _previewProjectSource;
+  MusicProject? _previewProjectCache;
+  MusicProject get _previewProject {
+    if (!identical(_previewProjectSource, widget.project)) {
+      _previewProjectSource = widget.project;
+      _previewProjectCache = _repairedProject() ?? widget.project;
+    }
+    return _previewProjectCache!;
+  }
+
+  /// Saves the repair [_previewProject] made, so the dashboard, sync and the
+  /// next visit agree with what this page plays.
+  MusicProject? _repairedProject() {
+    final repo = ref.read(repositoryProvider).asData?.value;
+    return PreviewReferenceRepair.repair(
+      widget.project,
+      userMixdownFolders:
+          repo?.userMixdownFoldersFor(widget.project.dawType) ?? const [],
+    );
+  }
+
+  void _persistPreviewRepair() {
+    final repaired = _repairedProject();
+    if (repaired == null) return;
+    Future.microtask(() async {
+      final repo = await ref.read(repositoryProvider.future);
+      await repo.updateProject(repaired);
+      ref.invalidate(allProjectsStreamProvider);
+    });
+  }
 
   @override
   void initState() {
@@ -2524,6 +2559,7 @@ class _PreviewSongPlayerState extends ConsumerState<_PreviewSongPlayer>
       if (_audioPlayer.state == PlayerState.playing) _audioPlayer.pause();
     });
     _attachListeners(_audioPlayer, _playerGen);
+    _persistPreviewRepair();
     _adoptStoredAutoPath();
     _startBackgroundPrep();
   }
@@ -2534,9 +2570,9 @@ class _PreviewSongPlayerState extends ConsumerState<_PreviewSongPlayer>
   /// asked for. A fresh scan only happens when the user presses "Find
   /// automatically" ([_findMixdownNow]).
   void _adoptStoredAutoPath() {
-    if (widget.project.previewSongPath?.isNotEmpty == true) return;
-    if (widget.project.previewSongAutoPath != null) {
-      _autoDetectedPath = widget.project.previewSongAutoPath;
+    if (_previewProject.previewSongPath?.isNotEmpty == true) return;
+    if (_previewProject.previewSongAutoPath != null) {
+      _autoDetectedPath = _previewProject.previewSongAutoPath;
     }
   }
 
@@ -3021,16 +3057,39 @@ class _PreviewSongPlayerState extends ConsumerState<_PreviewSongPlayer>
           }
         }
       }
-    } catch (e) {
-      if (mounted) {
+    } catch (_) {
+      await _offerPlaybackRecovery();
+    }
+  }
+
+  bool _recovering = false;
+
+  /// The player refused the preview: explain why and offer find / pick /
+  /// remove instead of the raw platform error. Nothing changes unless the
+  /// user picks an action.
+  Future<void> _offerPlaybackRecovery() async {
+    final failedPath = _effectivePreviewPath;
+    if (!mounted || failedPath == null || _recovering) return;
+    _recovering = true;
+    try {
+      final recovered = await recoverUnplayablePreviewSong(
+        context,
+        ref,
+        widget.project,
+        failedPath,
+      );
+      if (!mounted || recovered == null) return;
+      setState(() => _replacedPreviewPath = recovered.path);
+      try {
+        await _playOnCurrentPlatform(recovered.path);
+      } catch (_) {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showAppSnackBar(
-          SnackBar(
-            content: Text(
-              AppLocalizations.of(context)!.failedToPlayPreview(e.toString()),
-            ),
-          ),
+          SnackBar(content: Text(AppLocalizations.of(context)!.audioFileCannotPlay)),
         );
       }
+    } finally {
+      _recovering = false;
     }
   }
 
@@ -3378,10 +3437,8 @@ class _PreviewSongPlayerState extends ConsumerState<_PreviewSongPlayer>
     }
   }
 
-  bool _isValidAudioFile(String filePath) {
-    final ext = p.extension(filePath).toLowerCase();
-    return MixdownDetectorService.audioExtensions.contains(ext);
-  }
+  bool _isValidAudioFile(String filePath) =>
+      MixdownDetectorService.isPlayableAudioPath(filePath);
 
   Future<void> _handleDroppedFiles(List<String> filePaths) async {
     if (filePaths.isEmpty) {
