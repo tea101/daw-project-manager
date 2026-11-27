@@ -146,3 +146,31 @@ List<(MusicProject, List<String>)> planBulkTagChange(
   }
   return changes;
 }
+
+/// [tags] with [from] (ignoring case) renamed to [to], in the same place, or
+/// [tags] itself when it doesn't have [from] — same no-op contract as
+/// [addTag]. When [to] is already there too, [from] is simply dropped rather
+/// than leaving the same tag twice.
+List<String> renameTag(List<String> tags, String from, String to) {
+  if (!containsTag(tags, from)) return tags;
+  final normalized = normalizeTag(to);
+  if (normalized == null) return tags;
+  final fromKey = tagKey(from);
+  final toKey = tagKey(normalized);
+  final out = <String>[];
+  for (final t in tags) {
+    final key = tagKey(t);
+    if (key == fromKey) {
+      if (!containsTag(out, normalized)) out.add(normalized);
+    } else if (key == toKey) {
+      if (!containsTag(out, normalized)) out.add(t);
+    } else {
+      out.add(t);
+    }
+  }
+  if (out.length == tags.length &&
+      List.generate(out.length, (i) => out[i] == tags[i]).every((e) => e)) {
+    return tags;
+  }
+  return List.unmodifiable(out);
+}

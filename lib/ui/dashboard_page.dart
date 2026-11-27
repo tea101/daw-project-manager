@@ -102,6 +102,7 @@ import 'dialogs/create_project_dialog.dart';
 import 'dialogs/archive_project_dialog.dart';
 import 'dialogs/stack_metadata_source_dialog.dart';
 import 'dialogs/preview_song_not_found_dialog.dart';
+import 'dialogs/tag_phase_dialogs.dart';
 import 'preview_share.dart';
 import 'project_context_menu.dart';
 import 'project_templates_page.dart';
@@ -4913,44 +4914,107 @@ class _PlutoProjectsTableWithSelectionState
     }
   }
 
-  /// Adds a tag to, or removes one from, every selected project (#109).
+  /// Adds tags to, or removes one from, every selected project (#109); then,
+  /// when an added tag has a phase rule, offers the phase change — always
+  /// asking, with the count of projects it would move.
   Future<void> _showBulkTagsDialog(BuildContext context) async {
     final selected = widget.projects
         .where((p) => _selectedProjectIds.contains(p.id))
         .toList();
     if (selected.isEmpty) return;
-    final allTags = ref.read(availableTagsProvider);
+    final choices = ref.read(tagChoicesProvider);
     final change = await showBulkTagsDialog(
       context,
       projectCount: selected.length,
-      suggestions: allTags,
+      suggestions: choices,
       removable: collectTags(selected),
     );
     if (change == null || !mounted) return;
 
-    final tag = change.add ? canonicalTag(change.tag, allTags) : change.tag;
-    if (tag == null) return;
     final repo = await ref.read(repositoryProvider.future);
     // Only the projects whose tags actually change are written, so the count
     // in the snackbar is honest and untouched rows keep their updatedAt.
-    final changes = planBulkTagChange(selected, tag, add: change.add);
+    // Fresh from the box: the list this dashboard holds can be a frame
+    // behind an edit made elsewhere.
+    final current = {
+      for (final p in selected) p.id: repo.projectsBox.get(p.id) ?? p,
+    };
+    final changedIds = <String>{};
+    final applied = <String>[];
+    for (final raw in change.tags) {
+      final tag = change.add ? canonicalTag(raw, choices) : raw;
+      if (tag == null) continue;
+      applied.add(tag);
+      for (final (project, tags) in planBulkTagChange(
+        current.values,
+        tag,
+        add: change.add,
+      )) {
+        current[project.id] = project.copyWith(tags: tags);
+        changedIds.add(project.id);
+      }
+    }
     final now = DateTime.now();
-    for (final (project, tags) in changes) {
-      // Fresh from the box: the list this dashboard holds can be a frame
-      // behind an edit made elsewhere.
-      final current = repo.projectsBox.get(project.id) ?? project;
-      await repo.updateProject(current.copyWith(tags: tags, updatedAt: now));
+    for (final id in changedIds) {
+      await repo.updateProject(current[id]!.copyWith(updatedAt: now));
     }
     if (!mounted) return;
     ref.invalidate(allProjectsStreamProvider);
     ScaffoldMessenger.of(this.context).showAppSnackBar(
       SnackBar(
         content: Text(
-          AppLocalizations.of(this.context)!.bulkTagsUpdated(changes.length),
+          AppLocalizations.of(this.context)!.bulkTagsUpdated(changedIds.length),
         ),
       ),
     );
+
+    // Tag-to-phase rules: only adding triggers them, only for the projects
+    // that newly got a tag, and nothing moves without confirmation.
+    if (change.add && changedIds.isNotEmpty) {
+      await _offerTagPhaseChange(
+        [for (final id in changedIds) current[id]!],
+        applied,
+      );
+      if (!mounted) return;
+    }
     _clearSelection();
+  }
+
+  /// Offers the phase change the tag library's rules call for, and applies
+  /// it when confirmed. True when projects moved.
+  Future<bool> _offerTagPhaseChange(
+    List<MusicProject> projects,
+    List<String> addedTags,
+  ) async {
+    final decision = await askTagPhaseChange(
+      this.context,
+      projects: projects,
+      addedTags: addedTags,
+      library: ref.read(tagLibraryProvider),
+      phases: ref.read(customPhasesProvider),
+    );
+    if (decision == null || !mounted) return false;
+    final repo = await ref.read(repositoryProvider.future);
+    final now = DateTime.now();
+    for (final project in decision.projects) {
+      final fresh = repo.projectsBox.get(project.id) ?? project;
+      await repo.updateProject(fresh.copyWith(
+        status: decision.phase,
+        statusChangedAt: now,
+        updatedAt: now,
+      ));
+    }
+    if (!mounted) return true;
+    ref.invalidate(allProjectsStreamProvider);
+    ScaffoldMessenger.of(this.context).showAppSnackBar(
+      SnackBar(
+        content: Text(
+          AppLocalizations.of(this.context)!
+              .tagPhaseChanged(decision.projects.length, decision.phase),
+        ),
+      ),
+    );
+    return true;
   }
 
   Future<void> _changeProjectsStatus(

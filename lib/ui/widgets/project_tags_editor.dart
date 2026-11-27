@@ -21,7 +21,21 @@ class ProjectTagsEditor extends StatefulWidget {
     required this.onRemove,
     required this.removeTooltip,
     this.helperText,
+    this.pickerTooltip,
   });
+
+  /// When set, the field gets a dropdown button listing every entry of
+  /// [suggestions] not already on the project — the tag library, so tags can
+  /// be picked without typing. Its tooltip.
+  final String? pickerTooltip;
+
+  /// The entries the dropdown offers: [suggestions] minus [current], in the
+  /// order given (the tag library's order, then tags in use).
+  static List<String> pickerChoices({
+    required List<String> suggestions,
+    required List<String> current,
+  }) =>
+      [for (final s in suggestions) if (!containsTag(current, s)) s];
 
   /// The project's tags, in their stored order.
   final List<String> tags;
@@ -118,6 +132,16 @@ class _ProjectTagsEditorState extends State<ProjectTagsEditor> {
                 helperText: widget.helperText,
                 helperMaxLines: 2,
                 prefixIcon: const Icon(Icons.sell_outlined, size: 18),
+                suffixIcon: widget.pickerTooltip == null
+                    ? null
+                    : _TagPickerButton(
+                        tooltip: widget.pickerTooltip!,
+                        choices: ProjectTagsEditor.pickerChoices(
+                          suggestions: widget.suggestions,
+                          current: widget.tags,
+                        ),
+                        onSelected: _submit,
+                      ),
                 border: const OutlineInputBorder(),
                 isDense: true,
               ),
@@ -134,6 +158,39 @@ class _ProjectTagsEditorState extends State<ProjectTagsEditor> {
             );
           },
         ),
+      ],
+    );
+  }
+}
+
+/// The dropdown beside the tag field: every tag the library offers that the
+/// project doesn't have yet.
+class _TagPickerButton extends StatelessWidget {
+  const _TagPickerButton({
+    required this.tooltip,
+    required this.choices,
+    required this.onSelected,
+  });
+
+  final String tooltip;
+  final List<String> choices;
+  final ValueChanged<String> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      key: const ValueKey('tag-picker'),
+      tooltip: tooltip,
+      enabled: choices.isNotEmpty,
+      icon: const Icon(Icons.arrow_drop_down),
+      onSelected: onSelected,
+      itemBuilder: (_) => [
+        for (final tag in choices)
+          PopupMenuItem<String>(
+            key: ValueKey('tag-picker-$tag'),
+            value: tag,
+            child: Text(tag),
+          ),
       ],
     );
   }

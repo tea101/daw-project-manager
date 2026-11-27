@@ -45,6 +45,8 @@ import '../utils/project_tags.dart';
 import '../utils/custom_fields.dart';
 import '../models/custom_field.dart';
 import '../services/custom_field_merge.dart';
+import '../services/tag_library_merge.dart';
+import '../models/tag_definition.dart';
 import '../models/waveform_style.dart';
 import '../models/scan_root.dart';
 import '../models/ignored_path.dart';
@@ -2609,6 +2611,131 @@ final customFieldDefinitionsProvider =
 final activeCustomFieldsProvider = Provider<List<CustomFieldDefinition>>(
   (ref) => activeCustomFields(ref.watch(customFieldDefinitionsProvider)),
 );
+
+// ---------------------------------------------------------------------------
+// Tag library (Settings > Project tags)
+// ---------------------------------------------------------------------------
+
+/// Every tag in the user's tag library, tombstones included — the merge
+/// needs them. UI wants [activeTagLibraryProvider].
+///
+/// Global user data shared by every profile, stored as a JSON array in
+/// `app_settings` like the custom fields, so local backup and Drive sync
+/// carry it. Until the user edits it, it reads as [kDefaultTagLibrary]
+/// without anything being written. The library never tags a project.
+class TagLibraryNotifier extends Notifier<List<TagDefinition>> {
+  static const String boxName = 'app_settings';
+
+  StreamSubscription<BoxEvent>? _subscription;
+
+  @override
+  List<TagDefinition> build() {
+    ref.onDispose(() => _subscription?.cancel());
+    Future.microtask(load);
+    try {
+      if (Hive.isBoxOpen(boxName)) {
+        return decodeTagLibrary(
+          Hive.box<String>(boxName).get(tagLibraryStorageKey),
+        );
+      }
+    } catch (_) {
+      // Fall through to the async load.
+    }
+    return kDefaultTagLibrary;
+  }
+
+  @visibleForTesting
+  Future<void> load() async {
+    try {
+      await ensureHiveInitialized();
+      final box = await Hive.openBox<String>(boxName);
+      if (!ref.mounted) return;
+      state = decodeTagLibrary(box.get(tagLibraryStorageKey));
+      _subscription ??= box.watch(key: tagLibraryStorageKey).listen((event) {
+        if (!ref.mounted) return;
+        state = decodeTagLibrary(event.value as String?);
+      });
+    } catch (_) {
+      // Keep what we have if loading fails.
+    }
+  }
+
+  Future<void> _persist(List<TagDefinition> tags) async {
+    state = tags;
+    try {
+      await ensureHiveInitialized();
+      final box = await Hive.openBox<String>(boxName);
+      await box.put(tagLibraryStorageKey, encodeTagLibrary(tags));
+    } catch (e) {
+      if (kDebugMode) print('Failed to save tag library: $e');
+    }
+  }
+
+  /// Adds [tag] after every existing one, or replaces the one with its id.
+  /// Stamps `updatedAt` so the edit wins the next merge.
+  Future<void> upsert(TagDefinition tag) async {
+    final now = DateTime.now();
+    final next = [...state];
+    final index = next.indexWhere((t) => t.id == tag.id);
+    if (index >= 0) {
+      next[index] = tag.copyWith(updatedAt: now);
+    } else {
+      final order = activeTagLibrary(state).fold<int>(
+            -1,
+            (m, t) => t.order > m ? t.order : m,
+          ) +
+          1;
+      next.add(tag.copyWith(order: order, updatedAt: now));
+    }
+    await _persist(next);
+  }
+
+  /// Adds several new tags at once (one write).
+  Future<void> addAll(List<TagDefinition> tags) async {
+    if (tags.isEmpty) return;
+    final now = DateTime.now();
+    var order = activeTagLibrary(state).fold<int>(
+          -1,
+          (m, t) => t.order > m ? t.order : m,
+        ) +
+        1;
+    await _persist([
+      ...state,
+      for (final t in tags) t.copyWith(order: order++, updatedAt: now),
+    ]);
+  }
+
+  /// Leaves a tombstone, so an older copy elsewhere can't bring it back.
+  /// Projects carrying the tag are not touched here.
+  Future<void> delete(String id) async {
+    final now = DateTime.now();
+    await _persist([
+      for (final t in state)
+        t.id == id ? t.copyWith(deletedAt: now, updatedAt: now) : t,
+    ]);
+  }
+}
+
+final tagLibraryProvider =
+    NotifierProvider<TagLibraryNotifier, List<TagDefinition>>(
+      TagLibraryNotifier.new,
+    );
+
+/// The library as the user sees it: no tombstones, in order.
+final activeTagLibraryProvider = Provider<List<TagDefinition>>(
+  (ref) => activeTagLibrary(ref.watch(tagLibraryProvider)),
+);
+
+/// What the tag pickers offer: the library, then tags in use that it lacks.
+/// Empty while tags are switched off. (The dashboard's tag *filter* keeps
+/// using [availableTagsProvider], tags actually in use.)
+final tagChoicesProvider = Provider<List<String>>((ref) {
+  if (!ref.watch(tagsEnabledProvider)) return const [];
+  return tagChoices(
+    ref.watch(tagLibraryProvider),
+    ref.watch(availableTagsProvider),
+  );
+});
 
 /// Which built-in columns the dashboard's projects table shows, and in what
 /// order (Settings > Columns & fields). Custom field columns follow them.

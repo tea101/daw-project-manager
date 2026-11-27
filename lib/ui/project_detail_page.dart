@@ -48,6 +48,7 @@ import 'preview_share.dart';
 import 'dialogs/archive_project_dialog.dart';
 import 'dialogs/move_project_dialog.dart';
 import 'dialogs/preview_song_not_found_dialog.dart';
+import 'dialogs/tag_phase_dialogs.dart';
 import '../services/attachment_export_service.dart';
 import 'dialogs/project_appearance_dialog.dart';
 import '../services/audio_analysis_service.dart';
@@ -184,14 +185,28 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
   Future<void> _addTag(ProjectRepository repo, String raw) async {
     final project = repo.projectsBox.get(widget.projectId);
     if (project == null) return;
-    final tag = canonicalTag(raw, ref.read(availableTagsProvider));
+    final tag = canonicalTag(raw, ref.read(tagChoicesProvider));
     if (tag == null) return;
     final tags = addTag(project.tags, tag);
     if (identical(tags, project.tags)) return;
-    await repo.updateProject(
-      project.copyWith(tags: tags, updatedAt: DateTime.now()),
+    final tagged = project.copyWith(tags: tags, updatedAt: DateTime.now());
+    await repo.updateProject(tagged);
+    if (!mounted) return;
+    ref.invalidate(allProjectsStreamProvider);
+
+    // A tag with a phase rule offers the phase change — always asking.
+    // Applied through the phase dropdown's own path, so the autosave records
+    // it like a change made by hand.
+    final decision = await askTagPhaseChange(
+      context,
+      projects: [tagged.copyWith(status: _selectedPhase ?? tagged.status)],
+      addedTags: [tag],
+      library: ref.read(tagLibraryProvider),
+      phases: ref.read(customPhasesProvider),
     );
-    if (mounted) ref.invalidate(allProjectsStreamProvider);
+    if (decision == null || !mounted) return;
+    setState(() => _selectedPhase = decision.phase);
+    _scheduleAutoSave();
   }
 
   Future<void> _removeTag(ProjectRepository repo, String tag) async {
@@ -1649,6 +1664,9 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
 
                             // Project Phase Dropdown
                             DropdownButtonFormField<String>(
+                              // Keyed by the phase so a change made for it
+                              // (a tag's phase rule) shows in the field.
+                              key: ValueKey('phase-${_selectedPhase ?? ''}'),
                               initialValue:
                                   _selectedPhase ??
                                   ref.watch(customPhasesProvider).first,
@@ -1728,9 +1746,10 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
                             const SizedBox(height: 12),
                             ProjectTagsEditor(
                               tags: updatedProject.tags,
-                              suggestions: ref.watch(availableTagsProvider),
+                              suggestions: ref.watch(tagChoicesProvider),
                               hintText: l10n.addTagHint,
                               helperText: l10n.tagsHelper,
+                              pickerTooltip: l10n.tagPickerTooltip,
                               removeTooltip: l10n.removeTagTooltip,
                               onAdd: (raw) => _addTag(repo, raw),
                               onRemove: (tag) => _removeTag(repo, tag),

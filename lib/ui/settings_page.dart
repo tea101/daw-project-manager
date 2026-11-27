@@ -50,6 +50,7 @@ import '../utils/save_file_dialog.dart';
 import '../utils/root_overlap.dart' show findRootOverlaps;
 import '../services/plugin_bridge/plugin_install_scan.dart';
 import '../services/plugin_bridge/plugin_protocol.dart';
+import 'widgets/tag_library_section.dart';
 import 'widgets/plugin_settings.dart';
 import '../utils/phase_colors.dart';
 import 'dashboard_page.dart' show appVersion;
@@ -4298,6 +4299,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   contentPadding: EdgeInsets.zero,
                   dense: true,
                 ),
+                if (tagsEnabled) ...[
+                  const Divider(height: 24),
+                  const TagLibrarySection(),
+                ],
               ],
             ),
           ),
