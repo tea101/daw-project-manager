@@ -6,6 +6,8 @@ import 'package:hive_ce_flutter/hive_flutter.dart';
 import 'package:path/path.dart' as p;
 import '../models/custom_field.dart';
 import 'custom_field_merge.dart';
+import '../models/tag_definition.dart';
+import 'tag_library_merge.dart';
 import '../models/custom_theme.dart';
 import '../models/music_project.dart';
 import '../models/project_attachment.dart';
@@ -61,6 +63,7 @@ class BackupService {
     final dawLaunchCommands = await _readDawLaunchCommands();
     final customThemes = await _readCustomThemes();
     final customFieldDefinitions = await _readCustomFieldDefinitions();
+    final tagLibrary = await _readTagLibrary();
     // Unlike Drive (which stores a byProfile map for every profile), a local
     // backup covers a single profile, so only that profile's phase settings
     // are relevant here.
@@ -109,6 +112,9 @@ class BackupService {
       // deleted since (see CustomFieldDefinition.deletedAt).
       'customFieldDefinitions':
           customFieldDefinitions.map((f) => f.toJson()).toList(),
+      // The tag library (Settings > Project tags) — global user data like
+      // the custom fields, tombstones included.
+      'tagLibrary': tagLibrary.map((t) => t.toJson()).toList(),
       'phaseSettings': phaseSettings,
     };
 
@@ -359,6 +365,11 @@ class BackupService {
         backupData['customFieldDefinitions'] as List?,
       );
 
+      // Absent before 3.0.4: no tag library to restore.
+      final importedTagLibrary = tagDefinitionsFromJson(
+        backupData['tagLibrary'] as List?,
+      );
+
       final importedPhaseSettings =
           (backupData['phaseSettings'] as Map?)?.cast<String, dynamic>() ?? const <String, dynamic>{};
 
@@ -451,6 +462,7 @@ class BackupService {
       await _writeDawLaunchCommands(importedDawLaunchCommands);
       await _writeCustomThemes(importedCustomThemes);
       await _writeCustomFieldDefinitions(importedCustomFieldDefinitions);
+      await _writeTagLibrary(importedTagLibrary);
       await _writePhaseSettings(targetProfileId, importedPhaseSettings);
 
       // Restore profile photo if embedded in backup
@@ -641,6 +653,31 @@ class BackupService {
         customFieldDefinitionsStorageKey,
         encodeCustomFieldDefinitions(merged),
       );
+    } catch (_) {}
+  }
+
+  /// The tag library. Global (not per-profile), stored like the custom
+  /// fields. A library never edited reads as the built-in defaults.
+  static Future<List<TagDefinition>> _readTagLibrary() async {
+    try {
+      final box = await Hive.openBox<String>(_appSettingsBoxName);
+      return decodeTagLibrary(box.get(tagLibraryStorageKey));
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Merges [tags] into the stored library with [mergeTagLibraries], the
+  /// rule Drive sync uses too — union, newer edit wins.
+  static Future<void> _writeTagLibrary(List<TagDefinition> tags) async {
+    if (tags.isEmpty) return;
+    try {
+      final box = await Hive.openBox<String>(_appSettingsBoxName);
+      final merged = mergeTagLibraries(
+        decodeTagLibrary(box.get(tagLibraryStorageKey)),
+        tags,
+      );
+      await box.put(tagLibraryStorageKey, encodeTagLibrary(merged));
     } catch (_) {}
   }
 
@@ -899,6 +936,12 @@ class BackupService {
   static Future<void> writeCustomFieldDefinitionsForTest(
           List<CustomFieldDefinition> fields) =>
       _writeCustomFieldDefinitions(fields);
+  @visibleForTesting
+  static Future<List<TagDefinition>> readTagLibraryForTest() =>
+      _readTagLibrary();
+  @visibleForTesting
+  static Future<void> writeTagLibraryForTest(List<TagDefinition> tags) =>
+      _writeTagLibrary(tags);
   @visibleForTesting
   static Future<List<CustomTheme>> readCustomThemesForTest() =>
       _readCustomThemes();

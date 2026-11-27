@@ -9369,4 +9369,130 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get audioFileCannotPlay => 'この音声ファイルはこのコンピュータで再生できません。';
+
+  @override
+  String get tagLibraryTitle => 'Tag library';
+
+  @override
+  String get tagLibraryDescription => 'Tags the tag pickers offer, even before any project has them. Shared by all profiles. Adding a tag here doesn\'t tag any project.';
+
+  @override
+  String get tagLibraryAdd => 'Add tag';
+
+  @override
+  String tagLibraryImportInUse(int count) {
+    return 'Add tags already in use (${count})';
+  }
+
+  @override
+  String tagLibraryImported(int count) {
+    return 'Tags added to the library: ${count}';
+  }
+
+  @override
+  String get tagLibraryEmpty => 'The tag library is empty.';
+
+  @override
+  String get tagNameLabel => 'Tag name';
+
+  @override
+  String get tagNameExists => 'The library already has a tag with this name.';
+
+  @override
+  String get tagColorTooltip => 'Tag colour';
+
+  @override
+  String get renameTagTitle => 'Rename tag';
+
+  @override
+  String renameTagOnProjects(int count, String from, String to) {
+    return 'Projects tagged “${from}”: ${count}. They will be renamed to “${to}” too.';
+  }
+
+  @override
+  String get renameTagConfirm => 'Rename';
+
+  @override
+  String deleteTagTitle(String tag) {
+    return 'Delete “${tag}” from the tag library?';
+  }
+
+  @override
+  String deleteTagMessage(int count) {
+    return 'Projects with this tag: ${count}. Keep the tag on them, or remove it from them too?';
+  }
+
+  @override
+  String get deleteTagUnused => 'No project has this tag.';
+
+  @override
+  String get deleteTagKeepOnProjects => 'Delete, keep on projects';
+
+  @override
+  String deleteTagRemoveFromProjects(int count) {
+    return 'Delete and remove from ${count} projects';
+  }
+
+  @override
+  String get tagPhaseRuleLabel => 'When added to a project';
+
+  @override
+  String get tagPhaseRuleKeep => 'Keep the project\'s phase';
+
+  @override
+  String tagPhaseRuleSet(String phase) {
+    return 'Offer to change the phase to ${phase}';
+  }
+
+  @override
+  String tagPhaseRuleSetMissing(String phase) {
+    return 'Offer ${phase} (not a phase in this profile)';
+  }
+
+  @override
+  String tagPhaseRuleMissingPhase(String phase) {
+    return 'A tag offers the ${phase} phase, but this profile doesn\'t have it, so the rule does nothing yet.';
+  }
+
+  @override
+  String createPhaseButton(String phase) {
+    return 'Create ${phase} phase';
+  }
+
+  @override
+  String get createPreviousVersionPhaseTitle => 'Create the Previous Version phase?';
+
+  @override
+  String get createPreviousVersionPhaseMessage => 'A grey Previous Version phase will be added after Finished in this profile. No project\'s phase changes.';
+
+  @override
+  String get tagPickerTooltip => 'Choose from the tag library';
+
+  @override
+  String get bulkTagsApply => 'Add selected tags';
+
+  @override
+  String get tagPhaseConflictTitle => 'Which phase?';
+
+  @override
+  String get tagPhaseConflictMessage => 'The tags you added offer different phases. Choose one, or keep the current phase.';
+
+  @override
+  String get tagPhaseKeepCurrent => 'Keep current phase';
+
+  @override
+  String get tagPhaseConfirmTitle => 'Change the phase?';
+
+  @override
+  String tagPhaseConfirmMessage(int count, String phase) {
+    return 'Projects that would change: ${count}. New phase: “${phase}”.';
+  }
+
+  @override
+  String get tagPhaseChange => 'Change phase';
+
+  @override
+  String tagPhaseChanged(int count, String phase) {
+    return 'Projects moved to “${phase}”: ${count}';
+  }
 }

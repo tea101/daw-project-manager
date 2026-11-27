@@ -15397,6 +15397,210 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This audio file can\'t be played on this computer.'**
   String get audioFileCannotPlay;
+
+  /// No description provided for @tagLibraryTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tag library'**
+  String get tagLibraryTitle;
+
+  /// No description provided for @tagLibraryDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Tags the tag pickers offer, even before any project has them. Shared by all profiles. Adding a tag here doesn\'t tag any project.'**
+  String get tagLibraryDescription;
+
+  /// No description provided for @tagLibraryAdd.
+  ///
+  /// In en, this message translates to:
+  /// **'Add tag'**
+  String get tagLibraryAdd;
+
+  /// No description provided for @tagLibraryImportInUse.
+  ///
+  /// In en, this message translates to:
+  /// **'Add tags already in use ({count})'**
+  String tagLibraryImportInUse(int count);
+
+  /// No description provided for @tagLibraryImported.
+  ///
+  /// In en, this message translates to:
+  /// **'Tags added to the library: {count}'**
+  String tagLibraryImported(int count);
+
+  /// No description provided for @tagLibraryEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'The tag library is empty.'**
+  String get tagLibraryEmpty;
+
+  /// No description provided for @tagNameLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Tag name'**
+  String get tagNameLabel;
+
+  /// No description provided for @tagNameExists.
+  ///
+  /// In en, this message translates to:
+  /// **'The library already has a tag with this name.'**
+  String get tagNameExists;
+
+  /// No description provided for @tagColorTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Tag colour'**
+  String get tagColorTooltip;
+
+  /// No description provided for @renameTagTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename tag'**
+  String get renameTagTitle;
+
+  /// No description provided for @renameTagOnProjects.
+  ///
+  /// In en, this message translates to:
+  /// **'Projects tagged “{from}”: {count}. They will be renamed to “{to}” too.'**
+  String renameTagOnProjects(int count, String from, String to);
+
+  /// No description provided for @renameTagConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Rename'**
+  String get renameTagConfirm;
+
+  /// No description provided for @deleteTagTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete “{tag}” from the tag library?'**
+  String deleteTagTitle(String tag);
+
+  /// No description provided for @deleteTagMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Projects with this tag: {count}. Keep the tag on them, or remove it from them too?'**
+  String deleteTagMessage(int count);
+
+  /// No description provided for @deleteTagUnused.
+  ///
+  /// In en, this message translates to:
+  /// **'No project has this tag.'**
+  String get deleteTagUnused;
+
+  /// No description provided for @deleteTagKeepOnProjects.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete, keep on projects'**
+  String get deleteTagKeepOnProjects;
+
+  /// No description provided for @deleteTagRemoveFromProjects.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete and remove from {count} projects'**
+  String deleteTagRemoveFromProjects(int count);
+
+  /// No description provided for @tagPhaseRuleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'When added to a project'**
+  String get tagPhaseRuleLabel;
+
+  /// No description provided for @tagPhaseRuleKeep.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep the project\'s phase'**
+  String get tagPhaseRuleKeep;
+
+  /// No description provided for @tagPhaseRuleSet.
+  ///
+  /// In en, this message translates to:
+  /// **'Offer to change the phase to {phase}'**
+  String tagPhaseRuleSet(String phase);
+
+  /// No description provided for @tagPhaseRuleSetMissing.
+  ///
+  /// In en, this message translates to:
+  /// **'Offer {phase} (not a phase in this profile)'**
+  String tagPhaseRuleSetMissing(String phase);
+
+  /// No description provided for @tagPhaseRuleMissingPhase.
+  ///
+  /// In en, this message translates to:
+  /// **'A tag offers the {phase} phase, but this profile doesn\'t have it, so the rule does nothing yet.'**
+  String tagPhaseRuleMissingPhase(String phase);
+
+  /// No description provided for @createPhaseButton.
+  ///
+  /// In en, this message translates to:
+  /// **'Create {phase} phase'**
+  String createPhaseButton(String phase);
+
+  /// No description provided for @createPreviousVersionPhaseTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Create the Previous Version phase?'**
+  String get createPreviousVersionPhaseTitle;
+
+  /// No description provided for @createPreviousVersionPhaseMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'A grey Previous Version phase will be added after Finished in this profile. No project\'s phase changes.'**
+  String get createPreviousVersionPhaseMessage;
+
+  /// No description provided for @tagPickerTooltip.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose from the tag library'**
+  String get tagPickerTooltip;
+
+  /// No description provided for @bulkTagsApply.
+  ///
+  /// In en, this message translates to:
+  /// **'Add selected tags'**
+  String get bulkTagsApply;
+
+  /// No description provided for @tagPhaseConflictTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Which phase?'**
+  String get tagPhaseConflictTitle;
+
+  /// No description provided for @tagPhaseConflictMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'The tags you added offer different phases. Choose one, or keep the current phase.'**
+  String get tagPhaseConflictMessage;
+
+  /// No description provided for @tagPhaseKeepCurrent.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep current phase'**
+  String get tagPhaseKeepCurrent;
+
+  /// No description provided for @tagPhaseConfirmTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Change the phase?'**
+  String get tagPhaseConfirmTitle;
+
+  /// No description provided for @tagPhaseConfirmMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Projects that would change: {count}. New phase: “{phase}”.'**
+  String tagPhaseConfirmMessage(int count, String phase);
+
+  /// No description provided for @tagPhaseChange.
+  ///
+  /// In en, this message translates to:
+  /// **'Change phase'**
+  String get tagPhaseChange;
+
+  /// No description provided for @tagPhaseChanged.
+  ///
+  /// In en, this message translates to:
+  /// **'Projects moved to “{phase}”: {count}'**
+  String tagPhaseChanged(int count, String phase);
 }
 
 class _AppLocalizationsDelegate

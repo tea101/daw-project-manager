@@ -56,7 +56,8 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.done);
     await tester.pumpAndSettle();
 
-    expect(results, [(tag: 'trap', add: true)]);
+    expect(results.single!.tags, ['trap']);
+    expect(results.single!.add, isTrue);
   });
 
   testWidgets('the × on a tag asks to remove it', (tester) async {
@@ -65,7 +66,8 @@ void main() {
     await tester.tap(find.byTooltip('Remove tag "house"'));
     await tester.pumpAndSettle();
 
-    expect(results, [(tag: 'house', add: false)]);
+    expect(results.single!.tags, ['house']);
+    expect(results.single!.add, isFalse);
   });
 
   testWidgets('says so when the selection has no tags to remove', (
@@ -86,5 +88,34 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(results, [null]);
+  });
+
+  testWidgets('ticking library tags and applying adds them all', (tester) async {
+    await pump(tester, suggestions: ['Previous Version', 'Approved Master', 'Mix']);
+
+    // Nothing ticked: nothing to apply.
+    final apply = find.byKey(const ValueKey('bulk-add-apply'));
+    expect(tester.widget<FilledButton>(apply).onPressed, isNull);
+
+    await tester.tap(find.byKey(const ValueKey('bulk-add-Previous Version')));
+    await tester.tap(find.byKey(const ValueKey('bulk-add-Mix')));
+    await tester.pumpAndSettle();
+    await tester.tap(apply);
+    await tester.pumpAndSettle();
+
+    expect(results.single!.add, isTrue);
+    expect(results.single!.tags, ['Previous Version', 'Mix']);
+  });
+
+  testWidgets('a typed tag is added together with the ticked ones', (tester) async {
+    await pump(tester, suggestions: ['Mix']);
+
+    await tester.tap(find.byKey(const ValueKey('bulk-add-Mix')));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('tag-input')), 'Brand new');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    expect(results.single!.tags, ['Mix', 'Brand new']);
   });
 }

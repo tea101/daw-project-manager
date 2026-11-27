@@ -43,6 +43,7 @@ import 'same_file_rows.dart';
 import '../models/midi_collection.dart';
 import 'custom_theme_merge.dart';
 import 'custom_field_merge.dart';
+import 'tag_library_merge.dart';
 import 'drive_sync_errors.dart';
 import '../utils/app_paths.dart'
     show
@@ -3487,6 +3488,11 @@ class GoogleDriveSyncService {
         appSettingsBox.get(customFieldDefinitionsStorageKey),
       );
 
+      // The tag library — global user data, tombstones included.
+      final tagLibrary = decodeTagLibrary(
+        appSettingsBox.get(tagLibraryStorageKey),
+      );
+
       // Collect per-DAW custom mixdown folders (global preference, not per-profile)
       Map<String, dynamic> customMixdownFoldersByDaw = {};
       try {
@@ -3579,6 +3585,7 @@ class GoogleDriveSyncService {
         // carries its values in 'customFields'.
         'customFieldDefinitions':
             customFieldDefinitions.map((f) => f.toJson()).toList(),
+        'tagLibrary': tagLibrary.map((t) => t.toJson()).toList(),
         // NEW: Per-profile phase customization (custom phase names, colors, finished set)
         'phaseSettingsByProfile': phaseSettingsByProfile,
         // NEW: Profile mappings to restore correct associations
@@ -5642,6 +5649,28 @@ class GoogleDriveSyncService {
         }
       } catch (e) {
         if (kDebugMode) print('Error merging custom fields: $e');
+      }
+    }
+
+    // Merge the tag library — same union / newer-wins rules, shared with
+    // local backup restore.
+    if (remoteData['tagLibrary'] != null) {
+      try {
+        final remoteTags = tagDefinitionsFromJson(
+            remoteData['tagLibrary'] as List);
+        if (remoteTags.isNotEmpty) {
+          final appSettingsBox = await Hive.openBox<String>('app_settings');
+          final merged = mergeTagLibraries(
+            decodeTagLibrary(appSettingsBox.get(tagLibraryStorageKey)),
+            remoteTags,
+          );
+          await appSettingsBox.put(
+            tagLibraryStorageKey,
+            encodeTagLibrary(merged),
+          );
+        }
+      } catch (e) {
+        if (kDebugMode) print('Error merging tag library: $e');
       }
     }
 

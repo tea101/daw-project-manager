@@ -58,6 +58,16 @@
       this one for each shipped version instead of overwriting it, so the
       changelog accumulates.
     -->
+    <release version="3.0.4" date="2026-11-27">
+      <description>
+        <ul>
+          <li>Customised WaveLab build (unofficial, from the tea101 fork), not an official Bandpass Records release.</li>
+          <li>Tag library (Settings &gt; Project tags): create, rename, colour and delete your own tags, shared by all profiles, and pick them from a list when tagging one project or many. Renaming or deleting asks before changing any project.</li>
+          <li>Tag phase rules: adding the Previous Version tag offers to move the project to a new grey Previous Version phase (created only when you confirm). Approved Master and other tags keep the phase unless you set a rule; every change asks first and shows how many projects it affects.</li>
+        </ul>
+      </description>
+      <url>https://github.com/tea101/daw-project-manager/releases/tag/v3.0.4</url>
+    </release>
     <release version="3.0.3" date="2026-11-26">
       <description>
         <ul>
