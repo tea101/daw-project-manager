@@ -32,10 +32,13 @@ void main() {
       expect(PreviewReferenceRepair.repair(project, fileExists: nothing), isNull);
     });
 
-    test('auto preview on an AppleDouble file moves to the real file', () {
+    test('auto preview on an AppleDouble file is cleared for re-detection, '
+        'even when the real file exists', () {
+      // Not repointed: beside an AppleDouble in a session folder, the real
+      // file is often a single recorded track, not a mix.
       final project = TestFactories.makeProject(previewSongAutoPath: ghost);
       final fixed = PreviewReferenceRepair.repair(project, fileExists: onlyReal)!;
-      expect(fixed.previewSongAutoPath, real);
+      expect(fixed.previewSongAutoPath, isNull);
       expect(fixed.previewSongPath, isNull);
     });
 
@@ -78,7 +81,7 @@ void main() {
       final fixed = PreviewReferenceRepair.repair(project, fileExists: onlyReal)!;
       expect(fixed.previewSongPath, manual);
       expect(fixed.previewSongFileName, 'Chosen.wav');
-      expect(fixed.previewSongAutoPath, real);
+      expect(fixed.previewSongAutoPath, isNull);
     });
 
     test('an AppleDouble "Keep Current" answer is forgotten', () {
@@ -104,6 +107,58 @@ void main() {
       final text = PreviewReferenceRepair.describe(project, fixed);
       expect(text, contains('auto'));
       expect(text, isNot(contains('manual')));
+    });
+  });
+
+  group('Pro Tools "Audio Files" auto previews', () {
+    final session = p.join('Volumes', 'G-DRIVE MIN', 'PROJECTS', 'Chosen One');
+    final track = p.join(session, 'Audio Files', 'Chosen One mix4_04.wav');
+    final bounce = p.join(session, 'Bounced Files', 'Chosen One.wav');
+
+    test('an auto preview in Audio Files is cleared for re-detection', () {
+      final project = TestFactories.makeProject(
+        dawType: 'Pro Tools',
+        previewSongAutoPath: track,
+      );
+      final fixed = PreviewReferenceRepair.repair(project, fileExists: nothing)!;
+      expect(fixed.previewSongAutoPath, isNull);
+    });
+
+    test('a bounce is left alone', () {
+      final project = TestFactories.makeProject(
+        dawType: 'Pro Tools',
+        previewSongAutoPath: bounce,
+      );
+      expect(PreviewReferenceRepair.repair(project, fileExists: nothing), isNull);
+    });
+
+    test('a manual pick in Audio Files is the user\'s choice', () {
+      final project = TestFactories.makeProject(
+        dawType: 'Pro Tools',
+        previewSongPath: track,
+        previewSongFileName: 'Chosen One mix4_04.wav',
+      );
+      expect(PreviewReferenceRepair.repair(project, fileExists: nothing), isNull);
+    });
+
+    test('kept when the user listed Audio Files as a mixdown folder', () {
+      final project = TestFactories.makeProject(
+        dawType: 'Pro Tools',
+        previewSongAutoPath: track,
+      );
+      expect(
+        PreviewReferenceRepair.repair(project,
+            fileExists: nothing, userMixdownFolders: ['audio files']),
+        isNull,
+      );
+    });
+
+    test('another DAW\'s "Audio Files" folder is not touched', () {
+      final project = TestFactories.makeProject(
+        dawType: 'Cubase',
+        previewSongAutoPath: p.join('x', 'Audio Files', 'Mix.wav'),
+      );
+      expect(PreviewReferenceRepair.repair(project, fileExists: nothing), isNull);
     });
   });
 }

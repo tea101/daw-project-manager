@@ -2517,24 +2517,32 @@ class _PreviewSongPlayerState extends ConsumerState<_PreviewSongPlayer>
           ? _previewProject.previewSongPath
           : (_autoDetectedPath ?? _previewProject.previewSongAutoPath));
 
-  // [widget.project] with any AppleDouble preview reference ("._Song.wav")
-  // repaired — such a file can never play. Recomputed only when the page is
+  // [widget.project] with any wrongly detected preview reference repaired
+  // (see PreviewReferenceRepair) — an AppleDouble file can never play. Recomputed only when the page is
   // handed a different project object.
   MusicProject? _previewProjectSource;
   MusicProject? _previewProjectCache;
   MusicProject get _previewProject {
     if (!identical(_previewProjectSource, widget.project)) {
       _previewProjectSource = widget.project;
-      _previewProjectCache =
-          PreviewReferenceRepair.repair(widget.project) ?? widget.project;
+      _previewProjectCache = _repairedProject() ?? widget.project;
     }
     return _previewProjectCache!;
   }
 
   /// Saves the repair [_previewProject] made, so the dashboard, sync and the
   /// next visit agree with what this page plays.
+  MusicProject? _repairedProject() {
+    final repo = ref.read(repositoryProvider).asData?.value;
+    return PreviewReferenceRepair.repair(
+      widget.project,
+      userMixdownFolders:
+          repo?.userMixdownFoldersFor(widget.project.dawType) ?? const [],
+    );
+  }
+
   void _persistPreviewRepair() {
-    final repaired = PreviewReferenceRepair.repair(widget.project);
+    final repaired = _repairedProject();
     if (repaired == null) return;
     Future.microtask(() async {
       final repo = await ref.read(repositoryProvider.future);

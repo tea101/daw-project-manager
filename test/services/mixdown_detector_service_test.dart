@@ -480,6 +480,36 @@ void main() {
   // Regression: v3.0.2 picked "._Tom2_19-02.wav" (a macOS AppleDouble
   // metadata file) as a preview, and the player failed with
   // "PlatformException(DarwinAudioError, Failed to set source)".
+  test('Pro Tools: "Audio Files" (recorded clips) is never a mixdown folder', () async {
+    final dir = await Directory.systemTemp.createTemp('pt_audio_files_');
+    try {
+      final audio = Directory(p.join(dir.path, 'Audio Files'))..createSync();
+      File(p.join(audio.path, 'Tom2_19-02.wav')).writeAsBytesSync([1]);
+      final project = TestFactories.makeProject(
+        filePath: p.join(dir.path, 'Session.ptx'),
+        dawType: 'Pro Tools',
+      );
+      expect(MixdownDetectorService.findLatestMixdown(project), isNull);
+      expect(MixdownDetectorService.dawFolders['Pro Tools'],
+          isNot(contains('Audio Files')));
+
+      final bounced = Directory(p.join(dir.path, 'Bounced Files'))..createSync();
+      File(p.join(bounced.path, 'Session Mix.wav')).writeAsBytesSync([1]);
+      expect(p.basename(MixdownDetectorService.findLatestMixdown(project)!.path),
+          'Session Mix.wav');
+
+      // Still available when the user asks for it.
+      expect(
+        MixdownDetectorService.findLatestMixdown(project,
+                customFoldersByDaw: {'Pro Tools': ['Audio Files']})!
+            .path,
+        contains('Tom2_19-02.wav'),
+      );
+    } finally {
+      await dir.delete(recursive: true);
+    }
+  });
+
   group('MixdownDetectorService: AppleDouble files are never audio', () {
     test('isAppleDoubleFile / isPlayableAudioPath', () {
       expect(MixdownDetectorService.isAppleDoubleFile(p.join('a', '._Tom2_19-02.wav')), isTrue);

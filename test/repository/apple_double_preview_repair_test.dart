@@ -43,7 +43,7 @@ void main() {
     );
 
     final planned = <String>[];
-    final dry = await repo.repairAppleDoublePreviewReferences(
+    final dry = await repo.repairPreviewReferences(
       dryRun: true,
       onPlanned: (before, after) => planned.add(before.id),
     );
@@ -52,8 +52,9 @@ void main() {
     expect(repo.projectsBox.get('bad')!.previewSongAutoPath, ghost.path,
         reason: 'a dry run saves nothing');
 
-    expect(await repo.repairAppleDoublePreviewReferences(), 1);
-    expect(repo.projectsBox.get('bad')!.previewSongAutoPath, real.path);
+    expect(await repo.repairPreviewReferences(), 1);
+    // Cleared, for detection to run again — never repointed.
+    expect(repo.projectsBox.get('bad')!.previewSongAutoPath, isNull);
     expect(repo.projectsBox.get('good')!.previewSongPath, chosen.path);
 
     // Nothing on disk changed.
@@ -62,6 +63,6 @@ void main() {
     expect(real.readAsBytesSync(), [1, 2]);
 
     // A second pass has nothing to do.
-    expect(await repo.repairAppleDoublePreviewReferences(), 0);
+    expect(await repo.repairPreviewReferences(), 0);
   });
 }

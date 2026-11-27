@@ -64,7 +64,7 @@
           <li>Customised WaveLab build (unofficial, from the tea101 fork), not an official Bandpass Records release.</li>
           <li>WaveLab projects (.mon and .wpr) now show a dedicated WaveLab logo wherever DAW logos appear.</li>
           <li>Newly discovered projects start in your first configured phase (Settings &gt; Phases) instead of a fixed Idea phase.</li>
-          <li>Preview songs never pick macOS ._ metadata files (which can't play); previews already pointing at one are repaired to the real file.</li>
+          <li>Automatic preview songs never pick macOS ._ metadata files (which can't play) or Pro Tools &quot;Audio Files&quot; recordings (single tracks, not mixes); previews detected that way are found again.</li>
           <li>When a preview song can&#39;t play, the app explains why and offers to find one automatically, choose another file or remove it, instead of showing a technical error. Ogg files are no longer picked automatically on a Mac, which can&#39;t play them.</li>
         </ul>
       </description>

@@ -45,7 +45,10 @@ class MixdownDetectorService {
     'Cubase':        ['Mixdown'],
     'Nuendo':        ['Mixdown'],
     'Studio One':    ['Mixdown', 'Mix', 'Exports'],
-    'Pro Tools':     ['Bounced Files', 'Bounce', 'Audio Files'],
+    // Not 'Audio Files': that is where Pro Tools keeps recorded and imported
+    // clips, so "newest file" there is a single track (a tom, a vocal take),
+    // never a mix. It was a default up to 3.0.2.
+    'Pro Tools':     ['Bounced Files', 'Bounce'],
     'Reaper':        ['Renders', 'Render', 'Mixdown'],
     'FL Studio':     ['Mixdown', 'Exports', 'Export'],
     'Bitwig Studio': ['bounce', 'Bounces', 'Mixdown', 'Exports'],
@@ -67,6 +70,11 @@ class MixdownDetectorService {
   /// whose `dawType` is null or not one of [dawFolders]' keys — mirrors how
   /// those projects already fall back to [fallbackFolders].
   static const String otherDawKey = '_other';
+
+  /// Pro Tools' folder of recorded and imported clips. An automatic preview
+  /// found there (before 3.0.3 it was a default mixdown folder) is a single
+  /// track, not a mix.
+  static const String proToolsAudioFilesFolder = 'Audio Files';
 
   /// True for a macOS AppleDouble metadata file ("._Song.wav"). macOS writes
   /// one beside every file it copies to a non-Apple volume (exFAT, FAT32,

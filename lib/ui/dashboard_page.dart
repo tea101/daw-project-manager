@@ -1111,9 +1111,10 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
       // Auto-detect preview songs for projects that have neither a manual nor
       // a previously auto-detected path. Runs after the full scan so all upserts
       // are committed before we read back the project list.
-      // First repair previews that point at macOS AppleDouble files
-      // ("._Song.wav"): earlier versions could pick them, and they never play.
-      await repo.repairAppleDoublePreviewReferences();
+      // First repair previews earlier versions detected wrongly — macOS
+      // AppleDouble files ("._Song.wav"), which never play, and Pro Tools
+      // "Audio Files" tracks — so the loop below detects them afresh.
+      await repo.repairPreviewReferences();
       final customFolders = ref.read(customMixdownFoldersProvider).value;
       final customFoldersByDaw = ref
           .read(customMixdownFoldersByDawProvider)
@@ -6066,12 +6067,16 @@ Future<void> playProjectPreview(
   final customFoldersByDaw = ref
       .read(customMixdownFoldersByDawProvider)
       .value;
-  // A preview stored as a macOS AppleDouble file ("._Song.wav") can never
-  // play ("Failed to set source"). Point it at the real file, or clear it so
-  // detection below finds a genuine one.
-  final repairedPreview = PreviewReferenceRepair.repair(project);
+  // A preview earlier versions detected wrongly — a macOS AppleDouble file
+  // ("._Song.wav") that can never play, or a Pro Tools "Audio Files" track —
+  // is repaired first, so detection below finds a genuine one.
+  final repo0 = await ref.read(repositoryProvider.future);
+  final repairedPreview = PreviewReferenceRepair.repair(
+    project,
+    userMixdownFolders: repo0.userMixdownFoldersFor(project.dawType),
+  );
   if (repairedPreview != null) {
-    final repo = await ref.read(repositoryProvider.future);
+    final repo = repo0;
     await repo.updateProject(repairedPreview);
     project = repairedPreview;
     ref.invalidate(allProjectsStreamProvider);

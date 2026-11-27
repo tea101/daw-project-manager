@@ -1602,19 +1602,32 @@ class ProjectRepository {
     await rescheduleDeadlines();
   }
 
-  /// Repairs preview references that point at macOS AppleDouble files
-  /// ("._Song.wav") — see [PreviewReferenceRepair]. Only those references
-  /// change; nothing on disk is touched. Returns how many projects changed.
+  /// The mixdown folder names the user added themselves for [dawType]:
+  /// the global list plus that DAW's own. Passed to [PreviewReferenceRepair]
+  /// so a folder the user chose is never second-guessed.
+  List<String> userMixdownFoldersFor(String? dawType) => [
+        ...getCustomMixdownFolders(),
+        ...?getCustomMixdownFoldersByDaw()[dawType ?? '_other'],
+      ];
+
+  /// Repairs preview references automatic detection should never have made
+  /// — see [PreviewReferenceRepair]: macOS AppleDouble files ("._Song.wav"),
+  /// and Pro Tools auto previews in "Audio Files". Valid manual previews are
+  /// never touched, and nothing on disk changes. Returns how many projects
+  /// changed.
   ///
   /// With [dryRun] nothing is saved; [onPlanned] still receives each
   /// project's before/after, for reporting.
-  Future<int> repairAppleDoublePreviewReferences({
+  Future<int> repairPreviewReferences({
     bool dryRun = false,
     void Function(MusicProject before, MusicProject after)? onPlanned,
   }) async {
     var changed = 0;
     for (final project in getAllProjects()) {
-      final repaired = PreviewReferenceRepair.repair(project);
+      final repaired = PreviewReferenceRepair.repair(
+        project,
+        userMixdownFolders: userMixdownFoldersFor(project.dawType),
+      );
       if (repaired == null) continue;
       changed++;
       onPlanned?.call(project, repaired);
