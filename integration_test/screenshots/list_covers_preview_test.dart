@@ -124,6 +124,7 @@ void main() {
     tester.view.physicalSize = _size;
     tester.view.devicePixelRatio = 1;
     await _seed();
+    final errorWidgetBuilder = ErrorWidget.builder;
     WidgetsApp.debugAllowBannerOverride = false;
     app.main(const []);
 
@@ -167,5 +168,7 @@ void main() {
             );
           }();
     await shot('2-name-column-close-up.png', crop: crop, ratio: 2);
+    // The app sets its own; the test binding wants its own back.
+    ErrorWidget.builder = errorWidgetBuilder;
   });
 }

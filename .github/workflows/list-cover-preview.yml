@@ -12,6 +12,8 @@ jobs:
   preview:
     runs-on: ubuntu-latest
     timeout-minutes: 40
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Install Linux dependencies
@@ -43,3 +45,16 @@ jobs:
           name: list-cover-preview
           path: build/preview_screenshots/
           if-no-files-found: warn
+      # Also on a branch of their own, so they can be fetched with git.
+      - name: Publish pictures to the preview-screenshots branch
+        if: always()
+        run: |
+          set -e
+          [ -d build/preview_screenshots ] || exit 0
+          mkdir /tmp/shots && cp build/preview_screenshots/*.png /tmp/shots/
+          cd /tmp/shots
+          git init -q -b preview-screenshots
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A && git commit -qm "List cover preview for ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" preview-screenshots
