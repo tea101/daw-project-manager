@@ -17,6 +17,7 @@ import '../../providers/theme_provider.dart';
 import '../../utils/theme_derivations.dart';
 import '../../utils/trina_grid_locale.dart';
 import 'project_info_columns.dart';
+import '../../utils/project_file_type.dart';
 import 'trina_grid_menu_delegate.dart';
 
 /// A release's tracks as a sortable table, mirroring the main dashboard's
@@ -218,6 +219,11 @@ class _ReleaseTracksTableState extends ConsumerState<ReleaseTracksTable> {
         enableEditingMode: false,
         width: 160,
         minWidth: 110,
+      ),
+      projectFileTypeColumn(
+        title: l10n.fileTypeColumn,
+        describe: (label) =>
+            label == kStackFileTypeLabel ? l10n.fileTypeStackTooltip : null,
       ),
       TrinaColumn(
         title: l10n.bpm,

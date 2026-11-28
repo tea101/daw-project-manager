@@ -1,7 +1,10 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../models/music_project.dart';
+import '../utils/audio_format_info.dart';
 import '../utils/mobile_utils.dart';
+import 'associated_audio/audio_roles.dart';
+import 'auto_preview_rules.dart';
 
 /// Locates the most recently modified audio file in a project's mixdown/bounce
 /// folder, for use as a fallback preview when no song has been set manually.
@@ -150,6 +153,9 @@ class MixdownDetectorService {
   }) {
     if (MobileUtils.isMobile()) return null;
     if (project.filePath.isEmpty) return null;
+    // A folder holding several sessions shares its bounce folder between
+    // them: there, only a file named after this session will do (v3.0.6).
+    final shared = sessionFolderIsShared(project.filePath);
 
     for (final dir in _candidateDirs(
       project,
@@ -162,10 +168,111 @@ class MixdownDetectorService {
       if (files.isEmpty) continue;
 
       files.sort((a, b) => _modified(b).compareTo(_modified(a)));
-      return files.first;
+      // Newest first, skipping what must never be a preview by itself:
+      // stems, a session's own clips, ADM masters and anything with more
+      // than two channels (the preview player would downmix it unasked).
+      // A folder the user listed as their mixdown folder is theirs to
+      // name — "Audio Files" included — so only the header rules and stems
+      // apply there.
+      final userListed = _userListedDirs(project,
+              customFolders: customFolders,
+              customFoldersByDaw: customFoldersByDaw)
+          .contains(p.normalize(dir.path));
+      final projectDir = File(project.filePath).parent.path;
+      for (final file in files) {
+        final format = readFormat(file.path);
+        if (mayAutoSelect(file.path,
+                projectFolder: projectDir,
+                userListedFolder: userListed,
+                format: format) &&
+            // Never a part of a mix (an instrument group, one channel of a
+            // split, a mono file); in a folder shared by several sessions,
+            // only a file reliably named after this one (v3.0.6).
+            autoPreviewFitsSession(file.path, project.filePath,
+                sharedFolder: shared, format: format)) {
+          return file;
+        }
+      }
     }
 
     return null;
+  }
+
+  /// Every folder name automatic detection treats as [project]'s mixdown
+  /// folder: the user's, the DAW's and the generic ones (v3.0.6, for
+  /// [isInSessionBounceFolder]).
+  static List<String> bounceFolderNamesFor(
+    String? dawType, {
+    Iterable<String> userFolders = const [],
+  }) =>
+      [
+        ...userFolders,
+        ...?dawFolders[dawType],
+        ...fallbackFolders,
+        if (dawType == 'Logic Pro') 'Bounces',
+        'Exported Files',
+      ];
+
+  /// Whether the folder [sessionPath] sits in holds other sessions of the
+  /// same kind (same extension; AppleDouble companions don't count), so
+  /// its bounce folder is shared. False when the folder can't be read.
+  /// Overridable in tests.
+  static bool Function(String sessionPath) sessionFolderIsShared =
+      _sessionFolderIsShared;
+
+  static bool _sessionFolderIsShared(String sessionPath) {
+    final ext = p.extension(sessionPath).toLowerCase();
+    if (ext.isEmpty) return false;
+    try {
+      var count = 0;
+      for (final entity in Directory(p.dirname(sessionPath)).listSync()) {
+        if (entity is! File) continue;
+        final name = p.basename(entity.path);
+        if (name.startsWith('._') || name.startsWith('.')) continue;
+        if (p.extension(name).toLowerCase() != ext) continue;
+        if (++count > 1) return true;
+      }
+    } on FileSystemException {
+      return false;
+    }
+    return false;
+  }
+
+  /// Reads a candidate's header; overridable in tests.
+  static AudioFormatInfo? Function(String path) readFormat = readAudioFormatSync;
+
+  /// Whether automatic detection may pick [path] as a preview: not a stem,
+  /// a session clip, an ADM master or a multichannel file
+  /// ([autoPreviewRejection]). Reads the file's header — a few small reads,
+  /// only for a file that is about to be offered for playback anyway.
+  static bool mayAutoSelect(
+    String path, {
+    String? projectFolder,
+    bool userListedFolder = false,
+    AudioFormatInfo? format,
+  }) {
+    final rejection = autoPreviewRejection(
+      path,
+      projectFolder: projectFolder,
+      format: format ?? readFormat(path),
+    );
+    if (rejection == null) return true;
+    return userListedFolder && rejection == AutoPreviewRejection.sessionClip;
+  }
+
+  static Set<String> _userListedDirs(
+    MusicProject project, {
+    List<String>? customFolders,
+    Map<String, List<String>>? customFoldersByDaw,
+  }) {
+    final projectDir = File(project.filePath).parent.path;
+    return {
+      for (final name in [
+        ...?customFolders,
+        ...?customFoldersByDaw?[project.dawType ?? otherDawKey],
+      ])
+        if (name.isNotEmpty) p.normalize(p.join(projectDir, name)),
+    };
   }
 
   /// Returns the newest audio file in the same directory as [currentPath] if it

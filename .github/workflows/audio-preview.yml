@@ -1,0 +1,58 @@
+# Fork-only helper: renders v3.0.6's File Type column and Audio files section
+# in the real app on a demo library under a virtual display, and publishes
+# the pictures to the preview-screenshots-306 branch. Nothing is signed,
+# published or released.
+name: v3.0.6 preview pictures
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ 'release/v3.0.6-wavelab' ]
+
+concurrency:
+  group: audio-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev \
+            libsecret-1-dev libayatana-appindicator3-dev libnotify-dev \
+            libgstreamer1.0-dev libgstreamer-plugins-base1.0-dev xvfb fonts-dejavu-core
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: 3.47.7
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      - run: cp lib/config/oauth_config.dart.template lib/config/oauth_config.dart
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - run: flutter gen-l10n
+      - run: flutter config --enable-linux-desktop
+      - name: Render the preview
+        run: |
+          xvfb-run -a -s "-screen 0 1920x1080x24" \
+            flutter test integration_test/screenshots/audio_preview_test.dart -d linux \
+              --dart-define=DPM_DATA_DIR=daw_project_manager_screenshots \
+              --dart-define=DPM_HIDE_VERSION=true \
+              --dart-define=DPM_SCREENSHOTS=true
+      - name: Publish pictures to the preview-screenshots-306 branch
+        if: always()
+        run: |
+          set -e
+          [ -d build/preview_screenshots ] || exit 0
+          mkdir /tmp/shots && cp build/preview_screenshots/*.png /tmp/shots/
+          cd /tmp/shots
+          git init -q -b preview-screenshots-306
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git add -A && git commit -qm "v3.0.6 preview for ${GITHUB_SHA::7}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" preview-screenshots-306

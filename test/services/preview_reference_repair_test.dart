@@ -8,6 +8,8 @@ import '../helpers/test_factories.dart';
 // and leave valid manual choices exactly as they are.
 void main() {
   final dir = p.join('Volumes', 'DRIVE', 'Song', 'Mixdown');
+  // The session the previews belong to: their Mixdown folder is its own.
+  final songSession = p.join('Volumes', 'DRIVE', 'Song', 'Song.cpr');
   final real = p.join(dir, 'Tom2_19-02.wav');
   final ghost = p.join(dir, '._Tom2_19-02.wav');
   bool onlyReal(String path) => p.equals(path, real);
@@ -16,6 +18,7 @@ void main() {
   group('PreviewReferenceRepair.repair', () {
     test('leaves a project with valid previews alone', () {
       final project = TestFactories.makeProject(
+        filePath: songSession,
         previewSongPath: real,
         previewSongFileName: 'Tom2_19-02.wav',
         previewSongAutoPath: p.join(dir, 'Other.wav'),
@@ -60,6 +63,7 @@ void main() {
 
     test('manual AppleDouble preview without a real file is cleared', () {
       final project = TestFactories.makeProject(
+        filePath: songSession,
         previewSongPath: ghost,
         previewSongFileName: '._Tom2_19-02.wav',
         previewSongAutoPath: p.join(dir, 'Auto.wav'),
@@ -114,6 +118,7 @@ void main() {
     final session = p.join('Volumes', 'G-DRIVE MIN', 'PROJECTS', 'Chosen One');
     final track = p.join(session, 'Audio Files', 'Chosen One mix4_04.wav');
     final bounce = p.join(session, 'Bounced Files', 'Chosen One.wav');
+    final sessionFile = p.join(session, 'Chosen One.ptx');
 
     test('an auto preview in Audio Files is cleared for re-detection', () {
       final project = TestFactories.makeProject(
@@ -126,6 +131,7 @@ void main() {
 
     test('a bounce is left alone', () {
       final project = TestFactories.makeProject(
+        filePath: sessionFile,
         dawType: 'Pro Tools',
         previewSongAutoPath: bounce,
       );
@@ -143,6 +149,7 @@ void main() {
 
     test('kept when the user listed Audio Files as a mixdown folder', () {
       final project = TestFactories.makeProject(
+        filePath: sessionFile,
         dawType: 'Pro Tools',
         previewSongAutoPath: track,
       );
@@ -156,7 +163,8 @@ void main() {
     test('another DAW\'s "Audio Files" folder is not touched', () {
       final project = TestFactories.makeProject(
         dawType: 'Cubase',
-        previewSongAutoPath: p.join('x', 'Audio Files', 'Mix.wav'),
+        filePath: p.join('x', 'Harbour.cpr'),
+        previewSongAutoPath: p.join('x', 'Audio Files', 'Harbour Mix.wav'),
       );
       expect(PreviewReferenceRepair.repair(project, fileExists: nothing), isNull);
     });

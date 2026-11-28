@@ -93,6 +93,10 @@ import 'widgets/theme_switcher.dart';
 import 'widgets/mobile_mini_player.dart';
 import 'widgets/project_cover_avatar.dart';
 import '../utils/project_visuals.dart';
+import '../utils/project_file_type.dart';
+import '../services/standalone_audio_scanner.dart';
+import '../services/associated_audio/audio_index_summary.dart';
+import 'widgets/audio_index_progress.dart';
 import '../generated/l10n/app_localizations.dart';
 import 'session_actions.dart';
 import 'midi_library_page.dart';
@@ -117,6 +121,9 @@ import '../models/dashboard_view_mode.dart';
 import '../models/scan_root.dart';
 import '../models/todo_item.dart';
 import '../providers/providers.dart';
+import '../services/external_player.dart';
+import '../utils/audio_format_info.dart';
+import 'external_playback.dart';
 import '../repository/project_repository.dart';
 import '../services/google_drive_sync_service.dart' show GoogleDriveSyncService;
 import '../utils/playback_todo_utils.dart';
@@ -837,6 +844,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
       // so the progress overlay can show an accurate "X of Y" total before
       // the slow part — per-file metadata extraction — begins below.
       final entitiesByRoot = <ScanRoot, List<FileSystemEntity>>{};
+      final standaloneAudioByRoot = <ScanRoot, List<FileSystemEntity>>{};
       for (final root in repo.getActiveRoots()) {
         if (_scanCancelRequested) break;
         if (kDebugMode) debugPrint('[_scanAll] enumerating root ${root.path}...');
@@ -855,6 +863,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
           debugPrint('[_scanAll] root ${root.path}: found ${entities.length} project files');
         }
         entitiesByRoot[root] = entities;
+        // Standalone audio files (v3.0.6), when the setting is on.
+        if (ref.read(standaloneAudioEnabledProvider) && !_scanCancelRequested) {
+          standaloneAudioByRoot[root] = await findStandaloneAudio(
+            root.path,
+            ignoredPaths: ignoredPaths,
+          ).toList();
+        }
       }
 
       if (_scanCancelRequested) {
@@ -897,7 +912,19 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
           foundCount += entities.length;
         }
         processedBeforeThisRoot += entities.length;
-        final foundPaths = entities.map((e) => e.path).toSet();
+        // Standalone audio: names and dates only, never a deep read.
+        final audio = standaloneAudioByRoot[root] ?? const [];
+        if (audio.isNotEmpty) {
+          allFailures.addAll(await repo.upsertManyFromFileSystemEntities(
+            audio,
+            fullMetadata: false,
+          ));
+          foundCount += audio.length;
+        }
+        final foundPaths = {
+          ...entities.map((e) => e.path),
+          ...audio.map((e) => e.path),
+        };
         if (knownPaths.isNotEmpty) {
           for (final path in newlyFoundPaths(foundPaths, knownPaths)) {
             final saved = repo.getByPath(path);
@@ -1119,6 +1146,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
       }
 
       ref.invalidate(allProjectsStreamProvider);
+
+      // The audio index (v3.0.6): reads, in the background, only what
+      // changed since last time. After the list has caught up with the scan.
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) unawaited(ref.read(audioIndexProvider.notifier).runAll());
+      });
 
       if (mounted) {
         final scanType = fullMetadata
@@ -5105,6 +5138,8 @@ class _PlutoProjectsTableWithSelectionState
     final customPhases = ref.watch(customPhasesProvider);
     final dawFilter = ref.watch(dawFilterProvider);
     final availableDaws = ref.watch(availableDawsProvider);
+    final fileTypeFilter = ref.watch(fileTypeFilterProvider);
+    final availableFileTypes = ref.watch(availableFileTypesProvider);
     final availableTags = ref.watch(availableTagsProvider);
     final tagFilter = effectiveTagFilter(
       ref.watch(tagFilterProvider),
@@ -5442,6 +5477,65 @@ class _PlutoProjectsTableWithSelectionState
                     },
                   ),
                 ],
+                // File type (v3.0.6): ptx, mon, wav, stack… — only types the
+                // library has, and only once there is more than one.
+                if (availableFileTypes.length > 1 || fileTypeFilter != null) ...[
+                  const SizedBox(width: 4),
+                  FilterDropdown<String>(
+                    icon: Icons.description_outlined,
+                    value: fileTypeFilter,
+                    hintText: l10n.filterByFileType,
+                    items: [
+                      DropdownMenuItem<String>(
+                        value: null,
+                        child: Text(l10n.allFileTypes),
+                      ),
+                      ...availableFileTypes.map(
+                        (type) => DropdownMenuItem<String>(
+                          value: type,
+                          child: Text(type),
+                        ),
+                      ),
+                    ],
+                    onChanged: (String? value) {
+                      ref.read(fileTypeFilterProvider.notifier).setType(value);
+                    },
+                  ),
+                ],
+                // Associated audio (v3.0.6), from the audio index.
+                if (!MobileUtils.isMobile()) ...[
+                  const SizedBox(width: 4),
+                  FilterDropdown<AudioFilter>(
+                    icon: Icons.library_music_outlined,
+                    value: ref.watch(audioFilterProvider),
+                    hintText: l10n.audioFilterHint,
+                    items: [
+                      DropdownMenuItem<AudioFilter>(
+                        value: null,
+                        child: Text(l10n.audioFilterAll),
+                      ),
+                      DropdownMenuItem(
+                        value: AudioFilter.hasAudio,
+                        child: Text(l10n.audioFilterHasAudio),
+                      ),
+                      DropdownMenuItem(
+                        value: AudioFilter.hasAdm,
+                        child: Text(l10n.audioFilterHasAdm),
+                      ),
+                      DropdownMenuItem(
+                        value: AudioFilter.missingAudio,
+                        child: Text(l10n.audioFilterMissing),
+                      ),
+                      DropdownMenuItem(
+                        value: AudioFilter.notIndexed,
+                        child: Text(l10n.audioFilterNotIndexed),
+                      ),
+                    ],
+                    onChanged: (value) =>
+                        ref.read(audioFilterProvider.notifier).set(value),
+                  ),
+                  const AudioIndexProgress(),
+                ],
                 // Tag filter (#109) — only once some project has a tag.
                 if (availableTags.isNotEmpty) ...[
                   const SizedBox(width: 4),
@@ -5739,8 +5833,19 @@ class _PlutoProjectsTableWithSelectionState
                     color: Theme.of(context).textTheme.bodyMedium?.color,
                   ),
                 ),
+                const SizedBox(width: 16),
                 if (_selectedProjectIds.isNotEmpty)
-                  Row(
+                  // The buttons scroll sideways when the window is too
+                  // narrow for all of them, instead of being cut off at the
+                  // window's edge (v3.0.6, found on a real screen).
+                  Flexible(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: SingleChildScrollView(
+                        key: const ValueKey('selectionActionBarScroll'),
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       TextButton(
                         onPressed: _clearSelection,
@@ -6082,6 +6187,9 @@ class _PlutoProjectsTableWithSelectionState
                         },
                       ),
                     ],
+                        ),
+                      ),
+                    ),
                   )
                 else
                   const SizedBox.shrink(),
@@ -8104,12 +8212,24 @@ class _PlutoProjectsTableState extends ConsumerState<_PlutoProjectsTable>
                         const SizedBox.shrink(),
                   ),
                 ),
-              Flexible(child: Text(dawType, overflow: TextOverflow.ellipsis)),
+              // No DAW (a standalone audio file): a dash, not a blank.
+              Flexible(
+                child: Text(
+                  dawType.isEmpty ? '—' : dawType,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           );
 
           return content;
         },
+      ),
+      projectFileTypeColumn(
+        title: AppLocalizations.of(context)!.fileTypeColumn,
+        describe: (label) => label == kStackFileTypeLabel
+            ? AppLocalizations.of(context)!.fileTypeStackTooltip
+            : null,
       ),
       TrinaColumn(
         title: AppLocalizations.of(context)!.bpm,
@@ -9376,6 +9496,16 @@ class _PreviewSongDialogState extends ConsumerState<_PreviewSongDialog> {
       return;
     }
 
+    // Multichannel or ADM: handed to the external player, never played here
+    // as a downmix or as silence (v3.0.6).
+    final format = await readAudioFormat(_effectivePreviewPath!);
+    if (needsExternalPlayer(format)) {
+      if (mounted) {
+        await openInExternalPlayer(context, ref, _effectivePreviewPath!, format);
+      }
+      return;
+    }
+
     try {
       await _audioPlayer.play(_currentSource(), volume: _volume);
     } catch (_) {
@@ -9437,6 +9567,16 @@ class _PreviewSongDialogState extends ConsumerState<_PreviewSongDialog> {
       if (_isPlaying) {
         await _audioPlayer.pause();
       } else {
+        // Multichannel or ADM: handed to the external player, never played
+        // here as a downmix or as silence (v3.0.6).
+        final format = await readAudioFormat(_effectivePreviewPath!);
+        if (needsExternalPlayer(format)) {
+          if (mounted) {
+            await openInExternalPlayer(
+                context, ref, _effectivePreviewPath!, format);
+          }
+          return;
+        }
         if (_position == Duration.zero || _position >= _duration) {
           await _audioPlayer.play(DeviceFileSource(_effectivePreviewPath!), volume: _volume);
         } else {
@@ -10137,6 +10277,10 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
   AudioFileInfo? _fileInfo;
   bool _fileInfoLoading = true;
   WaveformPeaks? _peaks;
+  // Set when the track is multichannel or ADM (v3.0.6): the bar is a stereo
+  // player, so it neither plays nor downmixes it — it offers the user's
+  // external player instead of playing silence.
+  AudioFormatInfo? _externalOnly;
   // The saved height from the first frame — see PlayerBarHeightStore.
   double _barHeight = PlayerBarHeightStore.current;
   final FocusNode _focusNode = FocusNode();
@@ -10277,6 +10421,14 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
   /// place of the raw platform error.
   Future<void> _playRequest() async {
     final request = widget.request;
+    // Multichannel or ADM: never played here (a stereo player would downmix
+    // it, or sound like nothing) — see _externalOnly.
+    final format = await readAudioFormat(request.resolvedPath);
+    if (!mounted || widget.request.generation != request.generation) return;
+    if (needsExternalPlayer(format)) {
+      setState(() => _externalOnly = format);
+      return;
+    }
     try {
       await _player.play(
         DeviceFileSource(request.resolvedPath),
@@ -10328,6 +10480,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
         _monoFilePath = null;
         _fileInfo = null;
         _peaks = null;
+        _externalOnly = null;
       });
       _playRequest();
       _loadBackgroundData();
@@ -10457,6 +10610,8 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
   }
 
   Future<void> _togglePlayPause() async {
+    // A multichannel or ADM track isn't played here: play goes nowhere.
+    if (_externalOnly != null) return;
     try {
       if (_isPlaying) {
         await _player.pause();
@@ -10999,6 +11154,19 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                   ),
                 ),
                 // ── Row 2: waveform (full width) ──────────────────────────────
+                // …or, for a multichannel/ADM track, why it isn't played
+                // here and the way to hear it.
+                if (_externalOnly != null)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+                      child: _ExternalOnlyNotice(
+                        path: widget.request.resolvedPath,
+                        format: _externalOnly!,
+                      ),
+                    ),
+                  )
+                else
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
@@ -13504,4 +13672,49 @@ class _PendingFolderRow extends ConsumerWidget {
   }
 }
 
+/// The player bar's message for a multichannel or ADM track (v3.0.6): what
+/// the file is, that the bar is stereo and never downmixes, and the user's
+/// external player — a button, and the file to drag into it.
+class _ExternalOnlyNotice extends ConsumerWidget {
+  const _ExternalOnlyNotice({required this.path, required this.format});
 
+  final String path;
+  final AudioFormatInfo format;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final summary = audioFormatSummary(format);
+    final shown = externalPlayerShownFor(
+      format,
+      installed: ref.watch(installedExternalPlayersProvider).value ?? const {},
+      preference: ref.watch(externalPlayerPreferenceProvider),
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(Icons.surround_sound_outlined, color: theme.colorScheme.tertiary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            l10n.externalPlayerBarNotice(
+                summary.isEmpty ? l10n.externalPlayerMultichannel : summary),
+            style: theme.textTheme.bodySmall,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 10),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.headphones_outlined, size: 18),
+          label: Text(shown == null
+              ? l10n.externalPlayerOpenInPlayer
+              : l10n.externalPlayerOpenIn(shown.displayName)),
+          onPressed: () => openInExternalPlayer(context, ref, path, format),
+        ),
+        ExternalPlayerDragHandle(path: path),
+      ],
+    );
+  }
+}

@@ -1,6 +1,7 @@
 import Cocoa
 import CoreMIDI
 import FlutterMacOS
+import Quartz
 import ServiceManagement
 
 /// Native half of launch-at-login on macOS, answering the `launch_at_startup`
@@ -241,8 +242,25 @@ class MainFlutterWindow: NSWindow {
 
     // MIDI keyboards for the piano roll — see the bridge below.
     MidiInputBridge.register(with: flutterViewController.engine.binaryMessenger)
+    FileIntegrationBridge.register(with: flutterViewController.engine.binaryMessenger)
 
     super.awakeFromNib()
+  }
+
+  // Quick Look (v3.0.6): the panel asks the responder chain who controls
+  // it; this window hands it FileIntegrationBridge's list of files.
+  override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool {
+    true
+  }
+
+  override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) {
+    panel.dataSource = FileIntegrationBridge.shared
+    panel.delegate = FileIntegrationBridge.shared
+  }
+
+  override func endPreviewPanelControl(_ panel: QLPreviewPanel!) {
+    panel.dataSource = nil
+    panel.delegate = nil
   }
 
   private func setupTitleBarInteractions() {
@@ -456,5 +474,71 @@ final class MidiInputBridge: NSObject, FlutterStreamHandler {
       return value as String
     }
     return "MIDI"
+  }
+}
+
+
+/// Native half of `MacFileIntegration` (lib/services/macos_file_integration.dart):
+/// the system Quick Look panel for a list of files, and opening a file in an
+/// app named by bundle identifier (PT Peek). Only asks macOS to show or open
+/// things; never writes a file or touches another app's data.
+final class FileIntegrationBridge: NSObject, QLPreviewPanelDataSource, QLPreviewPanelDelegate {
+  static let shared = FileIntegrationBridge()
+
+  private var urls: [URL] = []
+
+  static func register(with messenger: FlutterBinaryMessenger) {
+    let channel = FlutterMethodChannel(
+      name: "com.bandpassrecords.dpm/file_integration",
+      binaryMessenger: messenger
+    )
+    channel.setMethodCallHandler { call, result in
+      shared.handle(call, result: result)
+    }
+  }
+
+  private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    let args = call.arguments as? [String: Any]
+    switch call.method {
+    case "appInstalled":
+      guard let id = args?["bundleId"] as? String else { return result(false) }
+      result(NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) != nil)
+    case "openWith":
+      guard let id = args?["bundleId"] as? String,
+            let path = args?["path"] as? String,
+            let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)
+      else { return result(false) }
+      guard FileManager.default.fileExists(atPath: path) else { return result(false) }
+      let configuration = NSWorkspace.OpenConfiguration()
+      configuration.activates = true
+      NSWorkspace.shared.open(
+        [URL(fileURLWithPath: path)], withApplicationAt: app, configuration: configuration
+      ) { _, error in
+        DispatchQueue.main.async { result(error == nil) }
+      }
+    case "quickLook":
+      let paths = (args?["paths"] as? [String]) ?? []
+      urls = paths
+        .filter { FileManager.default.fileExists(atPath: $0) }
+        .map { URL(fileURLWithPath: $0) }
+      guard !urls.isEmpty, let panel = QLPreviewPanel.shared() else { return result(false) }
+      if panel.isVisible {
+        panel.reloadData()
+      } else {
+        panel.makeKeyAndOrderFront(nil)
+      }
+      panel.currentPreviewItemIndex = 0
+      result(true)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  func numberOfPreviewItems(in panel: QLPreviewPanel!) -> Int {
+    urls.count
+  }
+
+  func previewPanel(_ panel: QLPreviewPanel!, previewItemAt index: Int) -> QLPreviewItem! {
+    urls[index] as NSURL
   }
 }

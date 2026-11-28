@@ -116,6 +116,8 @@ int compareCustomFieldValues(CustomFieldType type, Object? a, Object? b) {
 const List<String> kProjectsTableBuiltInColumns = [
   'status',
   'dawType',
+  // The actual file's type, beside the DAW (v3.0.6).
+  'fileType',
   'bpm',
   'key',
   'tags',
@@ -142,6 +144,7 @@ const Set<String> kProjectsTableHiddenByDefault = {
 /// Built-ins a release's tracklist starts without: the ones it never had
 /// before every field could be shown in either table.
 const Set<String> kReleaseTracksHiddenByDefault = {
+  'fileType',
   'tags',
   'deadline',
   'sampleRate',
@@ -203,15 +206,30 @@ List<TableColumnSetting> normalizeColumnLayout(
   }
   for (final id in builtIns) {
     if (seen.add(id)) {
-      result.add(TableColumnSetting(
+      final setting = TableColumnSetting(
         id,
         visible: !hiddenByDefault.contains(id),
         inReleaseTracks: !tracksHiddenByDefault.contains(id),
-      ));
+      );
+      // A column that belongs beside another goes there in a layout saved
+      // before it existed, not at the end.
+      final after = kInsertBuiltInAfter[id];
+      final at = after == null
+          ? -1
+          : result.indexWhere((s) => s.id == after);
+      if (at >= 0) {
+        result.insert(at + 1, setting);
+      } else {
+        result.add(setting);
+      }
     }
   }
   return result;
 }
+
+/// Built-ins that, missing from a stored layout, are placed right after
+/// another rather than at the end: File Type beside the DAW.
+const Map<String, String> kInsertBuiltInAfter = {'fileType': 'dawType'};
 
 /// Reads the stored layout. Never throws; anything unreadable is the default.
 List<TableColumnSetting> decodeColumnLayout(String? raw) {

@@ -7,6 +7,7 @@ import '../generated/l10n/app_localizations.dart';
 import '../models/music_project.dart';
 import '../providers/providers.dart';
 import '../services/google_drive_sync_service.dart';
+import '../services/macos_file_integration.dart';
 import '../services/metadata_extractor.dart';
 import '../services/mixdown_detector_service.dart';
 import '../services/scanner_service.dart';
@@ -153,6 +154,10 @@ Future<void> showProjectContextMenu({
       inspectOffered: !project.isVirtual &&
           ref.read(visibleTabsProvider).contains(AppTab.inspector) &&
           File(project.filePath).existsSync(),
+      ptPeekOffered: offersPtPeek(
+        project,
+        ptPeekInstalled: ref.read(ptPeekInstalledProvider).value ?? false,
+      ),
     ),
   );
 
@@ -178,6 +183,9 @@ Future<void> showProjectContextMenu({
         break;
       case 'inspect':
         await openInInspector(context, ref, project.filePath);
+        break;
+      case 'quickLook':
+        await MacFileIntegration.quickLook([project.filePath]);
         break;
       case 'playCapture':
         await playProjectCapture(context, ref, project);
@@ -370,6 +378,7 @@ List<Widget> projectMenuChildren({
   required bool previewShareable,
   bool captureOffered = false,
   bool inspectOffered = false,
+  bool ptPeekOffered = false,
 }) {
   Widget item(
     String value,
@@ -444,6 +453,12 @@ List<Widget> projectMenuChildren({
     // The Inspector tab (#196): desktop-only, and a stack has no file.
     if (inspectOffered)
       item('inspect', Icons.manage_search, l10n.projectMenuInspect),
+    // Quick Look (v3.0.6): a Pro Tools session, on a Mac with Neyrinck PT
+    // Peek, whose preview the system panel shows. There is no "Open in PT
+    // Peek": macOS handed it the session and PT Peek showed nothing, the
+    // same as Finder's Open With, so the item was removed.
+    if (ptPeekOffered)
+      item('quickLook', Icons.preview_outlined, l10n.quickLookSession),
     // The DAW plugin's latest capture (offersLatestCapture): the same rule as
     // the dot on the play button.
     if (captureOffered)
@@ -478,3 +493,13 @@ List<Widget> projectMenuChildren({
     ],
   ];
 }
+
+
+/// Whether Quick Look (PT Peek's preview) is offered for [project]: a
+/// Pro Tools 10+ session file that is here, on a Mac with PT Peek. A stack
+/// has no file of its own.
+bool offersPtPeek(MusicProject project, {required bool ptPeekInstalled}) =>
+    ptPeekInstalled &&
+    !project.isVirtual &&
+    ptPeekHandles(project.filePath) &&
+    File(project.filePath).existsSync();

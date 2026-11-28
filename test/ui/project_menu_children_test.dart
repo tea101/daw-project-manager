@@ -23,6 +23,7 @@ void main() {
     bool includeCardOptions = false,
     bool captureOffered = false,
     bool inspectOffered = false,
+    bool ptPeekOffered = false,
   }) async {
     await tester.pumpWidget(MaterialApp(
       localizationsDelegates: appLocalizationsDelegates,
@@ -52,6 +53,7 @@ void main() {
         previewShareable: previewShareable,
         captureOffered: captureOffered,
         inspectOffered: inspectOffered,
+        ptPeekOffered: ptPeekOffered,
       ),
     );
     await tester.pumpAndSettle();
@@ -63,6 +65,19 @@ void main() {
     await tester.tap(entry(key));
     await tester.pumpAndSettle();
   }
+
+  // v3.0.6: PT Peek showed nothing when macOS handed it a session (as with
+  // Finder's Open With), so only Quick Look — its preview — is offered.
+  testWidgets('a Pro Tools session offers Quick Look, not Open in PT Peek',
+      (tester) async {
+    await openMenu(
+      tester,
+      TestFactories.makeProject(filePath: '/v/Song/Song.ptx'),
+      ptPeekOffered: true,
+    );
+    expect(entry('quickLook'), findsOneWidget);
+    expect(entry('openInPtPeek'), findsNothing);
+  });
 
   testWidgets('the everyday actions are on top, the rest in two submenus',
       (tester) async {

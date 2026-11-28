@@ -26,6 +26,14 @@ import '../utils/phase_colors.dart';
 import '../utils/todo_due_utils.dart';
 import '../utils/project_visuals.dart';
 import '../utils/library_projects.dart';
+import '../utils/project_file_type.dart';
+import '../services/auto_preview_rules.dart';
+import '../services/external_player.dart';
+import '../services/macos_file_integration.dart';
+import '../services/associated_audio/associated_audio_service.dart';
+import '../services/associated_audio/audio_index_jobs.dart';
+import '../services/associated_audio/audio_index_summary.dart';
+import '../repository/audio_index_store.dart';
 import '../utils/media_notification.dart';
 
 import '../generated/l10n/app_localizations.dart';
@@ -531,13 +539,17 @@ final allProjectsStreamProvider = StreamProvider<List<MusicProject>>((
 final libraryProjectsProvider = Provider<List<MusicProject>>((ref) {
   final allProjects = ref.watch(allProjectsStreamProvider).value ?? const [];
   final fileExistence = ref.watch(fileExistenceCacheProvider);
-  return buildLibraryProjects(
+  final library = buildLibraryProjects(
     allProjects: allProjects,
     releases: ref.watch(releasesProvider).value ?? const [],
     scanRoots: ref.watch(scanRootsProvider),
     isMobile: MobileUtils.isMobile(),
     fileExistsLocally: fileExistence.exists,
   );
+  // Standalone audio files (v3.0.6) are hidden, never deleted, while the
+  // setting is off.
+  if (ref.watch(standaloneAudioEnabledProvider)) return library;
+  return library.where((p) => !isStandaloneAudioProject(p)).toList();
 });
 
 // PROVIDER CORRIGIDO: Agora observa o allProjectsStreamProvider e o Notifier
@@ -608,6 +620,26 @@ final projectsProvider = Provider<List<MusicProject>>((ref) {
         final dawFilter = ref.watch(dawFilterProvider);
         if (dawFilter != null) {
           projects = projects.where((p) => p.dawType == dawFilter).toList();
+        }
+
+        // --- Filter by associated audio (v3.0.6) ---
+        // Watched only while the filter is on: the index updates summaries
+        // as it works, and the list mustn't rebuild for each project then.
+        final audioFilter = ref.watch(audioFilterProvider);
+        if (audioFilter != null) {
+          final summaries = ref.watch(
+              audioIndexProvider.select((s) => s.summaries));
+          projects = projects
+              .where((p) => audioFilterMatches(audioFilter, summaries[p.id]))
+              .toList();
+        }
+
+        // --- Filter by file type (v3.0.6) ---
+        final fileTypeFilter = ref.watch(fileTypeFilterProvider);
+        if (fileTypeFilter != null) {
+          projects = projects
+              .where((p) => projectFileTypeLabel(p) == fileTypeFilter)
+              .toList();
         }
 
         // --- Filter by tag (#109) ---
@@ -2417,6 +2449,385 @@ class TagsEnabledNotifier extends Notifier<bool> {
 
 final tagsEnabledProvider = NotifierProvider<TagsEnabledNotifier, bool>(
   TagsEnabledNotifier.new,
+);
+
+/// The File Type column's filter (v3.0.6): a label from
+/// [projectFileTypeLabel] ("ptx", "mon", "wav", "stack"), or null for all.
+/// Session-only, like the DAW filter.
+class FileTypeFilterNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void setType(String? type) => state = type;
+
+  void clear() => state = null;
+}
+
+final fileTypeFilterProvider =
+    NotifierProvider<FileTypeFilterNotifier, String?>(
+  FileTypeFilterNotifier.new,
+);
+
+/// The file types in the library, for the filter: only types the user has.
+final availableFileTypesProvider = Provider<List<String>>((ref) {
+  final types = {
+    for (final p in ref.watch(libraryProjectsProvider)) projectFileTypeLabel(p),
+  }.toList()
+    ..sort();
+  return types;
+});
+
+/// Whether standalone audio files — masters and mixes in folders with no DAW
+/// session — are found by scans and shown in the projects list (v3.0.6).
+/// Off by default. Turning it off hides the rows already found; it never
+/// deletes them, and turning it back on shows them again. Device-local
+/// (`settings` box), like the other display preferences.
+class StandaloneAudioEnabledNotifier extends Notifier<bool> {
+  static const _key = 'standaloneAudioEnabled';
+
+  @override
+  bool build() {
+    try {
+      return Hive.box<String>('settings').get(_key) == 'true';
+    } catch (e) {
+      if (kDebugMode) print('Failed to load standaloneAudioEnabled: $e');
+      return false;
+    }
+  }
+
+  Future<void> set(bool value) async {
+    if (value == state) return;
+    state = value;
+    try {
+      final box = Hive.isBoxOpen('settings')
+          ? Hive.box<String>('settings')
+          : await Hive.openBox<String>('settings');
+      await box.put(_key, value.toString());
+    } catch (e) {
+      if (kDebugMode) print('Failed to save standaloneAudioEnabled: $e');
+    }
+  }
+}
+
+/// Whether Neyrinck PT Peek is installed (macOS only), for Quick Look on
+/// Pro Tools sessions (PT Peek's preview). Asked of Launch Services once per
+/// run; PT Peek itself is never touched.
+final ptPeekInstalledProvider = FutureProvider<bool>(
+  (ref) => MacFileIntegration.appInstalled(kPtPeekBundleId),
+);
+
+/// The external players for multichannel and immersive audio installed on
+/// this Mac (v3.0.6), asked of Launch Services once per run.
+final installedExternalPlayersProvider =
+    FutureProvider<Set<ExternalPlayer>>((ref) async {
+  return {
+    for (final player in ExternalPlayer.values)
+      if (await MacFileIntegration.appInstalled(player.bundleId)) player,
+  };
+});
+
+/// Which external player multichannel and immersive audio opens in
+/// (Settings > Audio files). Device-local (`settings` box): it names apps on
+/// this Mac. UTUVO Player Pro by default.
+class ExternalPlayerPreferenceNotifier
+    extends Notifier<ExternalPlayerPreference> {
+  static const _key = 'externalPlayer';
+
+  @override
+  ExternalPlayerPreference build() {
+    try {
+      return ExternalPlayerPreference.byName(
+          Hive.box<String>('settings').get(_key));
+    } catch (_) {
+      return ExternalPlayerPreference.utuvoPlayerPro;
+    }
+  }
+
+  Future<void> set(ExternalPlayerPreference value) async {
+    if (value == state) return;
+    state = value;
+    try {
+      final box = Hive.isBoxOpen('settings')
+          ? Hive.box<String>('settings')
+          : await Hive.openBox<String>('settings');
+      await box.put(_key, value.name);
+    } catch (e) {
+      if (kDebugMode) print('Failed to save externalPlayer: $e');
+    }
+  }
+}
+
+final externalPlayerPreferenceProvider = NotifierProvider<
+    ExternalPlayerPreferenceNotifier, ExternalPlayerPreference>(
+  ExternalPlayerPreferenceNotifier.new,
+);
+
+/// The projects list's audio filter (v3.0.6); null for all. Session-only.
+class AudioFilterNotifier extends Notifier<AudioFilter?> {
+  @override
+  AudioFilter? build() => null;
+
+  void set(AudioFilter? filter) => state = filter;
+}
+
+final audioFilterProvider =
+    NotifierProvider<AudioFilterNotifier, AudioFilter?>(AudioFilterNotifier.new);
+
+/// Where the audio index stands (v3.0.6).
+class AudioIndexState {
+  const AudioIndexState({
+    this.running = false,
+    this.done = 0,
+    this.total = 0,
+    this.current,
+    this.summaries = const {},
+    this.lastIndexed,
+    this.lastIndexedAt,
+  });
+
+  final bool running;
+  final int done;
+  final int total;
+
+  /// The project being read now.
+  final String? current;
+
+  /// Every indexed project's summary, by id (for the list's filters).
+  final Map<String, AudioIndexSummary> summaries;
+
+  /// The project read most recently, so its open page can refresh.
+  final String? lastIndexed;
+  final DateTime? lastIndexedAt;
+
+  AudioIndexState copyWith({
+    bool? running,
+    int? done,
+    int? total,
+    String? current,
+    bool clearCurrent = false,
+    Map<String, AudioIndexSummary>? summaries,
+    String? lastIndexed,
+    DateTime? lastIndexedAt,
+  }) =>
+      AudioIndexState(
+        running: running ?? this.running,
+        done: done ?? this.done,
+        total: total ?? this.total,
+        current: clearCurrent ? null : (current ?? this.current),
+        summaries: summaries ?? this.summaries,
+        lastIndexed: lastIndexed ?? this.lastIndexed,
+        lastIndexedAt: lastIndexedAt ?? this.lastIndexedAt,
+      );
+}
+
+/// How long one project may take before the index moves on (a network
+/// share that stopped answering). Its last known result stays.
+const Duration kAudioIndexProjectTimeout = Duration(minutes: 2);
+
+/// The audio index (v3.0.6): reads each project's associated audio in the
+/// background after every scan — only what changed since last time — and
+/// caches it, so a project's Audio files section is filled without asking.
+/// Desktop only. Device-local (see [AudioIndexStore]). Cancelable; nothing
+/// it does writes to a project file, session or audio file.
+class AudioIndexNotifier extends Notifier<AudioIndexState> {
+  bool _cancel = false;
+  Future<void>? _running;
+  Map<String, AudioIndexSummary> _summaries = {};
+
+  @override
+  AudioIndexState build() {
+    // A profile switch brings a new repository: start again from its index.
+    ref.watch(repositoryProvider);
+    _summaries = {};
+    if (!MobileUtils.isMobile()) Future.microtask(_loadSummaries);
+    return const AudioIndexState();
+  }
+
+  Future<AudioIndexStore?> _store() async {
+    try {
+      final repo = await ref.read(repositoryProvider.future);
+      return AudioIndexStore(repo.profileId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _loadSummaries() async {
+    final store = await _store();
+    if (store == null) return;
+    _summaries = await store.summaries();
+    state = state.copyWith(summaries: Map.unmodifiable(_summaries));
+  }
+
+  /// The cached report for [projectId], or null when never read.
+  Future<AssociatedAudioReport?> cached(String projectId) async =>
+      (await _store())?.get(projectId);
+
+  /// Stops a running pass after the project in hand. What was read stays.
+  void cancel() => _cancel = true;
+
+  /// Reads every project in the list, incrementally. A second call while one
+  /// runs just waits for it.
+  Future<void> runAll() async {
+    if (MobileUtils.isMobile()) return;
+    if (_running != null) return _running;
+    final run = _runAll();
+    _running = run;
+    try {
+      await run;
+    } finally {
+      _running = null;
+    }
+  }
+
+  Future<void> _runAll() async {
+    final store = await _store();
+    if (store == null) return;
+    final all = ref.read(allProjectsStreamProvider).value ?? const <MusicProject>[];
+    final jobs = audioIndexJobs(
+      ref.read(libraryProjectsProvider),
+      all,
+      addedFolders: await store.allAddedFolders(),
+    );
+    _cancel = false;
+    state = state.copyWith(running: true, done: 0, total: jobs.length);
+    var sincePublish = 0;
+    for (final job in jobs) {
+      if (_cancel) break;
+      state = state.copyWith(current: job.name);
+      await _index(store, job, force: false);
+      state = state.copyWith(done: state.done + 1);
+      // Summaries go to the list in batches: a filter watching them
+      // rebuilds the list once per batch, not once per project.
+      if (++sincePublish >= 25) {
+        sincePublish = 0;
+        state = state.copyWith(summaries: Map.unmodifiable(_summaries));
+      }
+    }
+    _sessionsPerFolder = null;
+    if (!_cancel) {
+      await store.retainOnly({for (final p in all) p.id});
+      _summaries.removeWhere((id, _) => !all.any((p) => p.id == id));
+    }
+    state = state.copyWith(
+      running: false,
+      clearCurrent: true,
+      summaries: Map.unmodifiable(_summaries),
+    );
+  }
+
+  /// A project with no preview at all gets an automatic stereo one from the
+  /// audio just found ([bestStereoPreviewFrom], v3.0.6): never over a
+  /// preview the user chose or an automatic one already there, never a
+  /// stem, session clip, ADM or multichannel file, and in a folder shared by
+  /// several sessions only a file named after this one. Best-effort.
+  Future<void> _fillAutoPreview(
+      String projectId, AssociatedAudioReport report) async {
+    try {
+      final repo = await ref.read(repositoryProvider.future);
+      final project = repo.getById(projectId);
+      if (project == null ||
+          project.isVirtual ||
+          project.isArchived ||
+          isStandaloneAudioProject(project) ||
+          (project.previewSongPath ?? '').isNotEmpty ||
+          (project.previewSongAutoPath ?? '').isNotEmpty) {
+        return;
+      }
+      final perFolder = _sessionsPerFolder ??= repo.sessionsPerFolder();
+      final shared = (perFolder[
+                  ProjectRepository.sessionFolderKey(project.filePath)] ??
+              0) >
+          1;
+      final best = bestStereoPreviewFrom(report,
+          sessionPath: project.filePath, sharedFolder: shared);
+      if (best == null) return;
+      await repo.setAutoPreviewIfNone(projectId, best.path);
+    } catch (_) {
+      // Best-effort: a preview is a convenience, never worth a failed read.
+    }
+  }
+
+  /// Sessions per folder for the pass in hand; dropped when a pass ends.
+  Map<String, int>? _sessionsPerFolder;
+
+  /// The folders the user added to [projectId]'s audio search.
+  Future<List<String>> addedFolders(String projectId) async =>
+      await (await _store())?.addedFolders(projectId) ?? const [];
+
+  /// Replaces [project]'s added folders and reads its audio again, so the
+  /// page shows what they hold. Returns the new report.
+  Future<AssociatedAudioReport?> setAddedFolders(
+      MusicProject project, List<String> folders) async {
+    final store = await _store();
+    if (store == null) return null;
+    await store.setAddedFolders(project.id, folders);
+    return indexOne(project);
+  }
+
+  /// Reads one project now — its page asked, or "Read again". [force]
+  /// re-reads everything, ignoring what is cached.
+  Future<AssociatedAudioReport?> indexOne(MusicProject project,
+      {bool force = false}) async {
+    if (MobileUtils.isMobile()) return null;
+    final store = await _store();
+    if (store == null) return null;
+    final all = ref.read(allProjectsStreamProvider).value ?? const <MusicProject>[];
+    final sources = audioSourcesFor(project, stackMembers: [
+      for (final m in all)
+        if (m.stackId == project.id) m,
+    ]);
+    if (sources.sessions.isEmpty) return null;
+    final report = await _index(
+      store,
+      AudioIndexJob(
+        projectId: project.id,
+        name: project.displayName,
+        sessions: sources.sessions,
+        folders: sources.folders,
+        addedFolders: await store.addedFolders(project.id),
+      ),
+      force: force,
+    );
+    _sessionsPerFolder = null;
+    state = state.copyWith(summaries: Map.unmodifiable(_summaries));
+    return report;
+  }
+
+  Future<AssociatedAudioReport?> _index(
+    AudioIndexStore store,
+    AudioIndexJob job, {
+    required bool force,
+  }) async {
+    try {
+      final previous = force ? null : await store.get(job.projectId);
+      final report = await readAssociatedAudio(
+        sessionPaths: job.sessions,
+        folders: job.folders,
+        addedFolders: job.addedFolders,
+        previous: previous,
+      ).timeout(kAudioIndexProjectTimeout);
+      await store.put(job.projectId, report);
+      _summaries[job.projectId] = AudioIndexSummary.of(report);
+      await _fillAutoPreview(job.projectId, report);
+      state = state.copyWith(
+        lastIndexed: job.projectId,
+        lastIndexedAt: DateTime.now(),
+      );
+      return report;
+    } catch (_) {
+      // Unreadable or too slow: the last known result stays.
+      return null;
+    }
+  }
+}
+
+final audioIndexProvider =
+    NotifierProvider<AudioIndexNotifier, AudioIndexState>(AudioIndexNotifier.new);
+
+final standaloneAudioEnabledProvider =
+    NotifierProvider<StandaloneAudioEnabledNotifier, bool>(
+  StandaloneAudioEnabledNotifier.new,
 );
 
 /// Whether a project is checked before it opens in its DAW (#222): missing

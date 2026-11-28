@@ -264,7 +264,7 @@ void main() {
 
       final moved = reorderColumnLayout(layout, 0, 2);
 
-      expect(moved.map((s) => s.id).take(3), ['dawType', 'bpm', 'status']);
+      expect(moved.map((s) => s.id).take(3), ['dawType', 'fileType', 'status']);
     });
 
     test('the tags column also needs the tags feature switched on', () {
@@ -321,5 +321,20 @@ void main() {
 
       expect(arranged, ['name', 'bpm', 'launch']);
     });
+  });
+
+  // v3.0.6: File Type belongs beside the DAW, also in layouts saved before
+  // it existed; shown in the projects table, not in release tracklists.
+  test('File Type joins an older layout right after the DAW column', () {
+    final older = normalizeColumnLayout(const [
+      TableColumnSetting('bpm'),
+      TableColumnSetting('dawType'),
+      TableColumnSetting('status'),
+    ]);
+    final ids = older.map((s) => s.id).toList();
+    expect(ids.take(4), ['bpm', 'dawType', 'fileType', 'status']);
+    final fileType = older.firstWhere((s) => s.id == 'fileType');
+    expect(fileType.visible, isTrue);
+    expect(fileType.inReleaseTracks, isFalse);
   });
 }

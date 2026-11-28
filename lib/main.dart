@@ -30,6 +30,7 @@ import 'models/music_project.dart';
 import 'providers/providers.dart';
 import 'repository/project_repository.dart';
 import 'services/scanner_service.dart';
+import 'services/standalone_audio_scanner.dart';
 import 'services/deadline_notification_service.dart';
 import 'services/google_drive_sync_service.dart';
 import 'services/update_check_service.dart';
@@ -659,6 +660,18 @@ Future<int> _runInitialScan(
         await repo.upsertManyFromFileSystemEntities(entities);
         foundCount += entities.length;
       }
+      // Standalone audio files (v3.0.6), when the setting is on: names only,
+      // never a full read.
+      if (container.read(standaloneAudioEnabledProvider)) {
+        final audio = await findStandaloneAudio(
+          root.path,
+          ignoredPaths: ignoredPaths,
+        ).toList();
+        if (audio.isNotEmpty) {
+          await repo.upsertManyFromFileSystemEntities(audio);
+          entities.addAll(audio);
+        }
+      }
       final foundPaths = entities.map((e) => e.path).toSet();
       if (knownPaths.isNotEmpty) {
         for (final path in newlyFoundPaths(foundPaths, knownPaths)) {
@@ -677,6 +690,20 @@ Future<int> _runInitialScan(
 
     // 3. Mark initial scan as complete
     container.read(initialScanStateProvider.notifier).complete();
+
+    // Automatic previews today's rules would never pick (v3.0.6):
+    // multichannel/ADM, stems, session clips, another session's file in a
+    // shared bounce folder. Cleared on launch, not only on a manual rescan;
+    // a preview the user chose is never touched. Best-effort.
+    try {
+      await repo.repairPreviewReferences();
+    } catch (_) {}
+
+    // The audio index (v3.0.6), in the background: only what changed since
+    // the last run is read.
+    Future.delayed(const Duration(seconds: 3), () {
+      unawaited(container.read(audioIndexProvider.notifier).runAll());
+    });
 
     if (kDebugMode) {
       print("Initial scan completed successfully.");
