@@ -288,4 +288,69 @@ void main() {
       }
     });
   });
+
+  /// v3.0.5 — the projects table shows a small square before each name
+  /// instead of the strip that bled under it. Every row keeps the square's
+  /// space so names line up; only a decorated project fills it.
+  group('ProjectRowThumbnail', () {
+    Future<void> pumpRow(WidgetTester tester, MusicProject project) =>
+        tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: Row(
+                children: [
+                  ProjectRowThumbnail(project: project),
+                  const Expanded(child: Text('name')),
+                ],
+              ),
+            ),
+          ),
+        );
+
+    testWidgets('an undecorated row keeps the square, empty', (tester) async {
+      await pumpRow(tester, TestFactories.makeProject(id: 'plain'));
+
+      final size = tester.getSize(find.byType(ProjectRowThumbnail));
+      expect(size, const Size.square(kProjectRowThumbnailSize));
+      expect(find.byType(ProjectCoverAvatar), findsNothing,
+          reason: 'no placeholder on undecorated rows');
+      expect(find.byType(Icon), findsNothing);
+    });
+
+    testWidgets('a decorated row draws its avatar at the thumbnail size',
+        (tester) async {
+      await pumpRow(
+        tester,
+        TestFactories.makeProject(
+          id: 'decorated',
+          accentColor: 0xFF123456,
+          iconKey: 'mic',
+        ),
+      );
+
+      final avatar =
+          tester.widget<ProjectCoverAvatar>(find.byType(ProjectCoverAvatar));
+      expect(avatar.size, kProjectRowThumbnailSize);
+      expect(tester.getSize(find.byType(ProjectRowThumbnail)),
+          const Size.square(kProjectRowThumbnailSize));
+    });
+
+    testWidgets('names start at the same place whether decorated or not',
+        (tester) async {
+      await pumpRow(tester, TestFactories.makeProject(id: 'plain'));
+      final plainX = tester.getTopLeft(find.text('name')).dx;
+
+      await pumpRow(
+        tester,
+        TestFactories.makeProject(id: 'decorated', accentColor: 0xFF123456),
+      );
+      final decoratedX = tester.getTopLeft(find.text('name')).dx;
+
+      expect(decoratedX, plainX);
+    });
+
+    test('the thumbnail fits inside the table row with a margin', () {
+      expect(kProjectRowThumbnailSize, lessThan(48));
+    });
+  });
 }

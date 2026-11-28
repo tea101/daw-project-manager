@@ -151,29 +151,11 @@ const double _kNameCellInsetX = 10;
 const EdgeInsets _kNameCellInset =
     EdgeInsets.symmetric(horizontal: _kNameCellInsetX);
 
-/// Row height of the projects grid, which the cover-art bleed matches so the
-/// artwork spans the row from top border to bottom.
-const double _kNameCellBleedHeight = 48;
+/// Row height of the projects grid.
+const double _kProjectsRowHeight = 48;
 
-/// Total width the bleeding cover art occupies: a square at full strength,
-/// then an equally wide tail fading to nothing under the start of the name.
-const double _kNameCellBleedWidth = _kNameCellBleedHeight * 2;
-
-/// Which edge of the Name cell the cover art is anchored to.
-///
-/// Right-anchored is being tried out: the artwork sits at the end of the name,
-/// solid against the column's right border and fading leftwards under the
-/// text, so the name starts at the same position on every row whether or not
-/// it has a cover. Set back to [CoverBleedSide.left] to restore the original
-/// look — nothing else needs to change.
-const CoverBleedSide _kNameCellBleedSide = CoverBleedSide.right;
-
-/// Space the name gives up on a row that has cover art, so it stays clear
-/// of the artwork's solid half and only ever sits over the faded tail — at the
-/// start of the row or the end, per [_kNameCellBleedSide]. Offsets
-/// [_kNameCellInset], which the artwork does not observe.
-const double _kNameCellBleedTextOffset =
-    _kNameCellBleedHeight - _kNameCellInsetX;
+/// Space between a row's cover thumbnail and its name.
+const double _kNameCellThumbGap = 10;
 
 /// Width of the tree connector drawn for a row nested inside a folder group.
 const double _kNameCellTreeConnectorWidth = 20;
@@ -7928,19 +7910,9 @@ class _PlutoProjectsTableState extends ConsumerState<_PlutoProjectsTable>
               parent.type.group.children.isEmpty ||
               parent.type.group.children.last == rendererContext.row;
 
-          // Cover art (#110) bleeds off the cell's left border at full row
-          // height and fades out to the right, so the artwork reads larger
-          // than the square it occupies and the row's text can start over its
-          // tail. Undecorated projects get nothing — no placeholder, no
-          // auto-assigned colour — so the list stays as quiet as it was.
-          // Cover art, or failing that a chosen colour/icon, bleeds into the
-          // cell (see ProjectCoverBleed). Undecorated rows get nothing.
-          final hasBleed = projectHasVisualIdentity(project);
-          // Nested rows keep their tree connector clear of the artwork —
-          // a guide line drawn across a cover reads as damage, not structure.
-          final bleedLeft = depth > 0 ? _kNameCellTreeConnectorWidth : 0.0;
-          final bleedOnLeft = _kNameCellBleedSide == CoverBleedSide.left;
-
+          // Cover art (#110), or failing that a chosen colour/icon, is a
+          // small square before the name (ProjectRowThumbnail). Undecorated
+          // rows keep the square's space, empty, so every name lines up.
           final content = Row(
             children: [
               if (depth > 0)
@@ -7956,18 +7928,16 @@ class _PlutoProjectsTableState extends ConsumerState<_PlutoProjectsTable>
                     ),
                   ),
                 ),
-              // Cover art or accent colour is drawn behind this row, never
-              // inline; the name only needs to clear the bleed's solid half.
-              if (hasBleed && bleedOnLeft)
-                const SizedBox(width: _kNameCellBleedTextOffset),
+              ProjectRowThumbnail(project: project),
+              const SizedBox(width: _kNameCellThumbGap),
+              // One line: a long name ends in "…" rather than wrapping into
+              // the next row's space (the full name is on its detail page).
               Expanded(
                 child: Text(
                   rendererContext.cell.value.toString(),
-                  // A halo of the card colour, so a light cover fading in
-                  // under the name can't wash it out. Plain rows need none.
-                  style: hasBleed
-                      ? TextStyle(shadows: onArtTextHalo(Theme.of(context)))
-                      : null,
+                  maxLines: 1,
+                  softWrap: false,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
               // Version count, so a stacked song is distinguishable from an
@@ -7997,7 +7967,7 @@ class _PlutoProjectsTableState extends ConsumerState<_PlutoProjectsTable>
                     child: OnArtMarker(
                       icon: Icons.notes,
                       color: Colors.amber.shade600,
-                      onArt: hasBleed,
+                      onArt: false,
                     ),
                   ),
                 ),
@@ -8011,7 +7981,7 @@ class _PlutoProjectsTableState extends ConsumerState<_PlutoProjectsTable>
                     child: OnArtMarker(
                       icon: Icons.description_outlined,
                       color: Colors.amber.shade600,
-                      onArt: hasBleed,
+                      onArt: false,
                     ),
                   ),
                 ),
@@ -8032,7 +8002,7 @@ class _PlutoProjectsTableState extends ConsumerState<_PlutoProjectsTable>
                       color: fileExists
                           ? Colors.blueGrey.shade300
                           : Colors.blueGrey.shade200,
-                      onArt: hasBleed,
+                      onArt: false,
                     ),
                   ),
                 ),
@@ -8050,42 +8020,13 @@ class _PlutoProjectsTableState extends ConsumerState<_PlutoProjectsTable>
                   child: OnArtMarker(
                     icon: Icons.cloud_off,
                     color: Colors.orange.shade400,
-                    onArt: hasBleed,
+                    onArt: false,
                   ),
                 ),
-              // Right-anchored art: the name and its badges end before the
-              // artwork's solid half, sitting only over the faded part.
-              if (hasBleed && !bleedOnLeft)
-                const SizedBox(width: _kNameCellBleedTextOffset),
             ],
           );
 
-          if (!hasBleed) {
-            return Padding(padding: _kNameCellInset, child: content);
-          }
-
-          // The artwork is painted first and the text over it: the fade has
-          // already taken it to near-nothing by the time the two overlap.
-          return Stack(
-            fit: StackFit.expand,
-            children: [
-              Positioned(
-                left: bleedOnLeft ? bleedLeft : null,
-                right: bleedOnLeft ? null : 0,
-                top: 0,
-                bottom: 0,
-                child: ProjectCoverBleed(
-                  project: project,
-                  height: _kNameCellBleedHeight,
-                  width: _kNameCellBleedWidth,
-                  solidFraction:
-                      _kNameCellBleedHeight / _kNameCellBleedWidth,
-                  side: _kNameCellBleedSide,
-                ),
-              ),
-              Padding(padding: _kNameCellInset, child: content),
-            ],
-          );
+          return Padding(padding: _kNameCellInset, child: content);
         },
       ),
       TrinaColumn(
@@ -8892,7 +8833,7 @@ class _PlutoProjectsTableState extends ConsumerState<_PlutoProjectsTable>
             color: activeTheme.textTheme.bodyMedium?.color,
           ),
           columnHeight: 44,
-          rowHeight: _kNameCellBleedHeight,
+          rowHeight: _kProjectsRowHeight,
           // Transparent so rowColorCallback controls all row backgrounds
           // (session green/yellow, playing, and click-selection) with no
           // per-cell border/fill on click.
