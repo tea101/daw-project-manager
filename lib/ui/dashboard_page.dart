@@ -1943,8 +1943,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
     final customPhases = ref.watch(customPhasesProvider);
     final dawFilter = ref.watch(dawFilterProvider);
     final availableDaws = ref.watch(availableDawsProvider);
-    final fileTypeFilter = ref.watch(fileTypeFilterProvider);
-    final availableFileTypes = ref.watch(availableFileTypesProvider);
     final availableTags = ref.watch(availableTagsProvider);
     final tagFilter = effectiveTagFilter(
       ref.watch(tagFilterProvider),
@@ -5129,6 +5127,8 @@ class _PlutoProjectsTableWithSelectionState
     final customPhases = ref.watch(customPhasesProvider);
     final dawFilter = ref.watch(dawFilterProvider);
     final availableDaws = ref.watch(availableDawsProvider);
+    final fileTypeFilter = ref.watch(fileTypeFilterProvider);
+    final availableFileTypes = ref.watch(availableFileTypesProvider);
     final availableTags = ref.watch(availableTagsProvider);
     final tagFilter = effectiveTagFilter(
       ref.watch(tagFilterProvider),

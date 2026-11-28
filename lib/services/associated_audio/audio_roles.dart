@@ -131,7 +131,7 @@ const List<String> kMultiMonoSuffixes = [
   'ltf', 'rtf', 'ltm', 'rtm', 'ltr', 'rtr', 'lts', 'rts', 'cs', 'lc', 'rc',
 ];
 
-/// For "Mix.Ltf.wav", the group it belongs to ("<folder>/Mix") and its
+/// For "Mix.Ltf.wav", the group it belongs to (`<folder>/Mix`) and its
 /// channel ("Ltf", as written). Null for a file that isn't one channel of a
 /// multi-mono set.
 ({String group, String channel})? multiMonoPart(String path) {
