@@ -1,0 +1,71 @@
+# Fork-only, one-off: a production macOS build of v3.0.6 from the tested
+# commit, with no GitHub release. Opens the real library (no test data dir),
+# version 3.0.6. Uploaded as a short-lived artifact with its SHA-256.
+name: Private macOS build (v3.0.6)
+
+on:
+  push:
+    branches: [ 'build/v3.0.6-macos-private' ]
+
+env:
+  SOURCE_SHA: 980b1189825942f2c636f29b8ae91387ff72e98d
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
+      - name: Confirm the source commit
+        run: |
+          echo "Building from $(git rev-parse HEAD)"
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: 3.47.7
+          channel: 'stable'
+      - name: Build macOS for Apple silicon only
+        run: flutter config --enable-macos-arm64-only
+      - run: flutter pub get
+      - name: Inject OAuth Credentials
+        run: |
+          chmod +x scripts/inject_oauth_config.sh
+          ./scripts/inject_oauth_config.sh -d "$DESKTOP_CLIENT_ID" -s "$DESKTOP_CLIENT_SECRET" -a "$ANDROID_WEB_CLIENT_ID"
+        env:
+          DESKTOP_CLIENT_ID: ${{ secrets.DESKTOP_CLIENT_ID }}
+          DESKTOP_CLIENT_SECRET: ${{ secrets.DESKTOP_CLIENT_SECRET }}
+          ANDROID_WEB_CLIENT_ID: ${{ secrets.ANDROID_WEB_CLIENT_ID }}
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - run: flutter gen-l10n
+      - run: flutter precache --macos
+      - name: Disable Xcode automatic code signing (as release.yml)
+        run: |
+          PBXPROJ="macos/Runner.xcodeproj/project.pbxproj"
+          sed -i '' 's/CODE_SIGN_STYLE = Automatic;/CODE_SIGN_STYLE = Manual;/g' "$PBXPROJ"
+          sed -i '' 's/DEVELOPMENT_TEAM = [A-Z0-9]*;/DEVELOPMENT_TEAM = "";/g' "$PBXPROJ"
+          sed -i '' 's/"CODE_SIGN_IDENTITY\[sdk=macosx\*\]" = "Apple Development"/"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-"/g' "$PBXPROJ"
+      - name: Build (production library, version 3.0.6)
+        run: flutter build macos --release --build-name=3.0.6 --build-number=30006 --dart-define=APP_VERSION=3.0.6
+      - name: Check the app is Apple silicon only and reports 3.0.6
+        run: |
+          APP="build/macos/Build/Products/Release/DAWProjectManager.app"
+          lipo -archs "$APP/Contents/MacOS/DAWProjectManager"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP/Contents/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Contents/Info.plist"
+          test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")" = "3.0.6"
+      - name: Zip and checksum
+        run: |
+          cd build/macos/Build/Products/Release
+          ditto -c -k --keepParent DAWProjectManager.app DAW_Project_Manager_macOS_v3.0.6.zip
+          shasum -a 256 DAW_Project_Manager_macOS_v3.0.6.zip | tee DAW_Project_Manager_macOS_v3.0.6.zip.sha256
+          ls -l DAW_Project_Manager_macOS_v3.0.6.zip
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: DAW_Project_Manager_macOS_v3.0.6
+          path: |
+            build/macos/Build/Products/Release/DAW_Project_Manager_macOS_v3.0.6.zip
+            build/macos/Build/Products/Release/DAW_Project_Manager_macOS_v3.0.6.zip.sha256
+          retention-days: 1
+          compression-level: 0
