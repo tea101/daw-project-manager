@@ -232,12 +232,8 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
               child: Wrap(
                 spacing: 8,
                 children: [
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.visibility_outlined, size: 18),
-                    label: Text(l10n.openInPtPeek),
-                    onPressed: () =>
-                        openSessionInPtPeek(context, project.filePath),
-                  ),
+                  // Quick Look only: "Open in PT Peek" was removed — PT Peek
+                  // was handed the session and showed nothing.
                   OutlinedButton.icon(
                     icon: const Icon(Icons.preview_outlined, size: 18),
                     label: Text(l10n.quickLookSession),
@@ -600,16 +596,5 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
         ),
       ),
     );
-  }
-}
-
-/// Opens [path] in PT Peek from a widget, telling the user when macOS
-/// couldn't.
-Future<void> openSessionInPtPeek(BuildContext context, String path) async {
-  final l10n = AppLocalizations.of(context)!;
-  final messenger = ScaffoldMessenger.of(context);
-  final ok = await MacFileIntegration.openWith(kPtPeekBundleId, path);
-  if (!ok) {
-    messenger.showAppSnackBar(SnackBar(content: Text(l10n.ptPeekOpenFailed)));
   }
 }

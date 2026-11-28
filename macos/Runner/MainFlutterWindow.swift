@@ -503,18 +503,6 @@ final class FileIntegrationBridge: NSObject, QLPreviewPanelDataSource, QLPreview
     case "appInstalled":
       guard let id = args?["bundleId"] as? String else { return result(false) }
       result(NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) != nil)
-    case "openWith":
-      guard let id = args?["bundleId"] as? String,
-            let path = args?["path"] as? String,
-            let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id)
-      else { return result(false) }
-      let file = URL(fileURLWithPath: path)
-      guard FileManager.default.fileExists(atPath: path) else { return result(false) }
-      NSWorkspace.shared.open(
-        [file], withApplicationAt: app, configuration: NSWorkspace.OpenConfiguration()
-      ) { _, error in
-        DispatchQueue.main.async { result(error == nil) }
-      }
     case "quickLook":
       let paths = (args?["paths"] as? [String]) ?? []
       urls = paths

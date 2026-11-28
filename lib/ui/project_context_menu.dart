@@ -25,7 +25,6 @@ import 'recently_deleted_actions.dart';
 import 'session_actions.dart';
 import 'app_snack_bar.dart';
 import 'widgets/anchored_menu.dart';
-import 'widgets/project_audio_section.dart' show openSessionInPtPeek;
 import 'widgets/semantics_safe.dart';
 
 /// The right-click menu on a project, and the three navigation actions it
@@ -184,9 +183,6 @@ Future<void> showProjectContextMenu({
         break;
       case 'inspect':
         await openInInspector(context, ref, project.filePath);
-        break;
-      case 'openInPtPeek':
-        await openSessionInPtPeek(context, project.filePath);
         break;
       case 'quickLook':
         await MacFileIntegration.quickLook([project.filePath]);
@@ -457,11 +453,12 @@ List<Widget> projectMenuChildren({
     // The Inspector tab (#196): desktop-only, and a stack has no file.
     if (inspectOffered)
       item('inspect', Icons.manage_search, l10n.projectMenuInspect),
-    // Neyrinck PT Peek (v3.0.6): a Pro Tools session, on a Mac that has it.
-    if (ptPeekOffered) ...[
-      item('openInPtPeek', Icons.visibility_outlined, l10n.openInPtPeek),
+    // Quick Look (v3.0.6): a Pro Tools session, on a Mac with Neyrinck PT
+    // Peek, whose preview the system panel shows. There is no "Open in PT
+    // Peek": macOS handed it the session and PT Peek showed nothing, the
+    // same as Finder's Open With, so the item was removed.
+    if (ptPeekOffered)
       item('quickLook', Icons.preview_outlined, l10n.quickLookSession),
-    ],
     // The DAW plugin's latest capture (offersLatestCapture): the same rule as
     // the dot on the play button.
     if (captureOffered)
@@ -498,7 +495,7 @@ List<Widget> projectMenuChildren({
 }
 
 
-/// Whether "Open in PT Peek" and Quick Look are offered for [project]: a
+/// Whether Quick Look (PT Peek's preview) is offered for [project]: a
 /// Pro Tools 10+ session file that is here, on a Mac with PT Peek. A stack
 /// has no file of its own.
 bool offersPtPeek(MusicProject project, {required bool ptPeekInstalled}) =>

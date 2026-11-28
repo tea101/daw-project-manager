@@ -69,7 +69,7 @@
           <li>Incremental background audio index with progress and Stop; cloud-only files never opened</li>
           <li>Audio filters: with audio, with an ADM master, missing audio</li>
           <li>Stereo, multichannel and Dolby Atmos ADM BWF told apart from their headers</li>
-          <li>Open in PT Peek and Quick Look for Pro Tools sessions on macOS</li>
+          <li>Quick Look for Pro Tools sessions on macOS (with Neyrinck PT Peek)</li>
           <li>Optional standalone audio files in the project list</li>
         </ul>
       </description>

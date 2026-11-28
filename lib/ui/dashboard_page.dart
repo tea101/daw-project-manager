@@ -5830,8 +5830,19 @@ class _PlutoProjectsTableWithSelectionState
                     color: Theme.of(context).textTheme.bodyMedium?.color,
                   ),
                 ),
+                const SizedBox(width: 16),
                 if (_selectedProjectIds.isNotEmpty)
-                  Row(
+                  // The buttons scroll sideways when the window is too
+                  // narrow for all of them, instead of being cut off at the
+                  // window's edge (v3.0.6, found on a real screen).
+                  Flexible(
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: SingleChildScrollView(
+                        key: const ValueKey('selectionActionBarScroll'),
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       TextButton(
                         onPressed: _clearSelection,
@@ -6173,6 +6184,9 @@ class _PlutoProjectsTableWithSelectionState
                         },
                       ),
                     ],
+                        ),
+                      ),
+                    ),
                   )
                 else
                   const SizedBox.shrink(),

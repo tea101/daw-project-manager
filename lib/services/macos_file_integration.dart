@@ -5,9 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 
 /// Neyrinck PT Peek's bundle identifier (read from its installed
-/// Info.plist, version 1.4.4). PT Peek has no command line, scripting or
-/// export: DAW Project Manager only asks macOS to open a session in it, the
-/// way Finder's Open With does.
+/// Info.plist, version 1.4.4): used only to tell whether it is installed,
+/// so Quick Look — which shows PT Peek's preview — is offered for `.ptx`.
 const String kPtPeekBundleId = 'com.neyrinck.ptpeek';
 
 /// Pro Tools session extensions PT Peek opens (version 10 and later).
@@ -19,7 +18,7 @@ bool ptPeekHandles(String path) =>
 
 /// macOS file integration through the app's own native code
 /// (`FileIntegrationBridge` in macos/Runner/MainFlutterWindow.swift):
-/// Quick Look in the system's own panel, and opening a file in a named app.
+/// Quick Look in the system's own panel, and whether an app is installed.
 /// Every call answers false/null off macOS and never throws.
 class MacFileIntegration {
   MacFileIntegration._();
@@ -35,19 +34,6 @@ class MacFileIntegration {
     try {
       return await _channel.invokeMethod<bool>(
               'appInstalled', {'bundleId': bundleId}) ??
-          false;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Opens [path] in the app with [bundleId]. False when the app isn't
-  /// installed or macOS refused. Nothing is changed in the file or the app.
-  static Future<bool> openWith(String bundleId, String path) async {
-    if (!supported) return false;
-    try {
-      return await _channel.invokeMethod<bool>(
-              'openWith', {'bundleId': bundleId, 'path': path}) ??
           false;
     } catch (_) {
       return false;

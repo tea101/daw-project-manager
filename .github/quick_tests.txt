@@ -24,3 +24,5 @@ test/utils/project_file_type_test.dart
 test/l10n/arb_parity_test.dart
 test/l10n/hardcoded_strings_test.dart
 test/l10n/plural_messages_test.dart
+test/ui/selection_action_bar_scroll_test.dart
+test/ui/project_menu_children_test.dart
