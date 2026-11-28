@@ -86,7 +86,7 @@ void main() {
     tearDown(() async => root.delete(recursive: true));
 
     Future<void> write(String rel, List<int> bytes) async {
-      final f = File(p.join(project, rel));
+      final f = File(p.joinAll([project, ...rel.split('/')]));
       await f.parent.create(recursive: true);
       await f.writeAsBytes(bytes);
     }
@@ -155,7 +155,9 @@ void main() {
     tearDown(() async => dir.delete(recursive: true));
 
     Future<File> file(String rel, List<int> bytes, DateTime modified) async {
-      final f = File(p.join(dir.path, rel));
+      // Built with the platform's separator: compared with what the
+      // detector finds on disk, on Windows too.
+      final f = File(p.joinAll([dir.path, ...rel.split('/')]));
       await f.parent.create(recursive: true);
       await f.writeAsBytes(bytes);
       await f.setLastModified(modified);

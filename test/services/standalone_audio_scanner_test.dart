@@ -13,7 +13,7 @@ void main() {
   tearDown(() async => root.delete(recursive: true));
 
   Future<void> touch(String rel) async {
-    final f = File(p.join(root.path, rel));
+    final f = File(p.joinAll([root.path, ...rel.split('/')]));
     await f.parent.create(recursive: true);
     await f.writeAsBytes([0]);
   }
