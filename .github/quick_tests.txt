@@ -5,3 +5,11 @@ test/services/wavelab_montage_parser_test.dart
 test/services/associated_audio_test.dart
 test/services/mixdown_detector_service_test.dart
 test/utils/preview_playback_problem_test.dart
+test/services/standalone_audio_scanner_test.dart
+test/ui/project_audio_sources_test.dart
+test/utils/custom_fields_test.dart
+test/ui/project_menu_children_test.dart
+test/models/music_project_test.dart
+test/ui/app_snack_bar_test.dart
+test/ui/semantics_orphans_test.dart
+test/ui/no_ref_in_dispose_test.dart

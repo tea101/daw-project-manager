@@ -26,6 +26,8 @@ import '../utils/phase_colors.dart';
 import '../utils/todo_due_utils.dart';
 import '../utils/project_visuals.dart';
 import '../utils/library_projects.dart';
+import '../utils/project_file_type.dart';
+import '../services/macos_file_integration.dart';
 import '../utils/media_notification.dart';
 
 import '../generated/l10n/app_localizations.dart';
@@ -531,13 +533,17 @@ final allProjectsStreamProvider = StreamProvider<List<MusicProject>>((
 final libraryProjectsProvider = Provider<List<MusicProject>>((ref) {
   final allProjects = ref.watch(allProjectsStreamProvider).value ?? const [];
   final fileExistence = ref.watch(fileExistenceCacheProvider);
-  return buildLibraryProjects(
+  final library = buildLibraryProjects(
     allProjects: allProjects,
     releases: ref.watch(releasesProvider).value ?? const [],
     scanRoots: ref.watch(scanRootsProvider),
     isMobile: MobileUtils.isMobile(),
     fileExistsLocally: fileExistence.exists,
   );
+  // Standalone audio files (v3.0.6) are hidden, never deleted, while the
+  // setting is off.
+  if (ref.watch(standaloneAudioEnabledProvider)) return library;
+  return library.where((p) => !isStandaloneAudioProject(p)).toList();
 });
 
 // PROVIDER CORRIGIDO: Agora observa o allProjectsStreamProvider e o Notifier
@@ -608,6 +614,14 @@ final projectsProvider = Provider<List<MusicProject>>((ref) {
         final dawFilter = ref.watch(dawFilterProvider);
         if (dawFilter != null) {
           projects = projects.where((p) => p.dawType == dawFilter).toList();
+        }
+
+        // --- Filter by file type (v3.0.6) ---
+        final fileTypeFilter = ref.watch(fileTypeFilterProvider);
+        if (fileTypeFilter != null) {
+          projects = projects
+              .where((p) => projectFileTypeLabel(p) == fileTypeFilter)
+              .toList();
         }
 
         // --- Filter by tag (#109) ---
@@ -2417,6 +2431,76 @@ class TagsEnabledNotifier extends Notifier<bool> {
 
 final tagsEnabledProvider = NotifierProvider<TagsEnabledNotifier, bool>(
   TagsEnabledNotifier.new,
+);
+
+/// The File Type column's filter (v3.0.6): a label from
+/// [projectFileTypeLabel] ("PTX", "MON", "WAV", "STACK"), or null for all.
+/// Session-only, like the DAW filter.
+class FileTypeFilterNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void setType(String? type) => state = type;
+
+  void clear() => state = null;
+}
+
+final fileTypeFilterProvider =
+    NotifierProvider<FileTypeFilterNotifier, String?>(
+  FileTypeFilterNotifier.new,
+);
+
+/// The file types in the library, for the filter: only types the user has.
+final availableFileTypesProvider = Provider<List<String>>((ref) {
+  final types = {
+    for (final p in ref.watch(libraryProjectsProvider)) projectFileTypeLabel(p),
+  }.toList()
+    ..sort();
+  return types;
+});
+
+/// Whether standalone audio files — masters and mixes in folders with no DAW
+/// session — are found by scans and shown in the projects list (v3.0.6).
+/// Off by default. Turning it off hides the rows already found; it never
+/// deletes them, and turning it back on shows them again. Device-local
+/// (`settings` box), like the other display preferences.
+class StandaloneAudioEnabledNotifier extends Notifier<bool> {
+  static const _key = 'standaloneAudioEnabled';
+
+  @override
+  bool build() {
+    try {
+      return Hive.box<String>('settings').get(_key) == 'true';
+    } catch (e) {
+      if (kDebugMode) print('Failed to load standaloneAudioEnabled: $e');
+      return false;
+    }
+  }
+
+  Future<void> set(bool value) async {
+    if (value == state) return;
+    state = value;
+    try {
+      final box = Hive.isBoxOpen('settings')
+          ? Hive.box<String>('settings')
+          : await Hive.openBox<String>('settings');
+      await box.put(_key, value.toString());
+    } catch (e) {
+      if (kDebugMode) print('Failed to save standaloneAudioEnabled: $e');
+    }
+  }
+}
+
+/// Whether Neyrinck PT Peek is installed (macOS only), for "Open in PT
+/// Peek" and Quick Look on Pro Tools sessions. Asked of Launch Services
+/// once per run; PT Peek itself is never touched.
+final ptPeekInstalledProvider = FutureProvider<bool>(
+  (ref) => MacFileIntegration.appInstalled(kPtPeekBundleId),
+);
+
+final standaloneAudioEnabledProvider =
+    NotifierProvider<StandaloneAudioEnabledNotifier, bool>(
+  StandaloneAudioEnabledNotifier.new,
 );
 
 /// Whether a project is checked before it opens in its DAW (#222): missing

@@ -7,6 +7,7 @@ import '../generated/l10n/app_localizations.dart';
 import '../models/music_project.dart';
 import '../providers/providers.dart';
 import '../services/google_drive_sync_service.dart';
+import '../services/macos_file_integration.dart';
 import '../services/metadata_extractor.dart';
 import '../services/mixdown_detector_service.dart';
 import '../services/scanner_service.dart';
@@ -24,6 +25,7 @@ import 'recently_deleted_actions.dart';
 import 'session_actions.dart';
 import 'app_snack_bar.dart';
 import 'widgets/anchored_menu.dart';
+import 'widgets/project_audio_section.dart' show openSessionInPtPeek;
 import 'widgets/semantics_safe.dart';
 
 /// The right-click menu on a project, and the three navigation actions it
@@ -153,6 +155,10 @@ Future<void> showProjectContextMenu({
       inspectOffered: !project.isVirtual &&
           ref.read(visibleTabsProvider).contains(AppTab.inspector) &&
           File(project.filePath).existsSync(),
+      ptPeekOffered: offersPtPeek(
+        project,
+        ptPeekInstalled: ref.read(ptPeekInstalledProvider).value ?? false,
+      ),
     ),
   );
 
@@ -178,6 +184,12 @@ Future<void> showProjectContextMenu({
         break;
       case 'inspect':
         await openInInspector(context, ref, project.filePath);
+        break;
+      case 'openInPtPeek':
+        await openSessionInPtPeek(context, project.filePath);
+        break;
+      case 'quickLook':
+        await MacFileIntegration.quickLook([project.filePath]);
         break;
       case 'playCapture':
         await playProjectCapture(context, ref, project);
@@ -370,6 +382,7 @@ List<Widget> projectMenuChildren({
   required bool previewShareable,
   bool captureOffered = false,
   bool inspectOffered = false,
+  bool ptPeekOffered = false,
 }) {
   Widget item(
     String value,
@@ -444,6 +457,11 @@ List<Widget> projectMenuChildren({
     // The Inspector tab (#196): desktop-only, and a stack has no file.
     if (inspectOffered)
       item('inspect', Icons.manage_search, l10n.projectMenuInspect),
+    // Neyrinck PT Peek (v3.0.6): a Pro Tools session, on a Mac that has it.
+    if (ptPeekOffered) ...[
+      item('openInPtPeek', Icons.visibility_outlined, l10n.openInPtPeek),
+      item('quickLook', Icons.preview_outlined, l10n.quickLookSession),
+    ],
     // The DAW plugin's latest capture (offersLatestCapture): the same rule as
     // the dot on the play button.
     if (captureOffered)
@@ -478,3 +496,13 @@ List<Widget> projectMenuChildren({
     ],
   ];
 }
+
+
+/// Whether "Open in PT Peek" and Quick Look are offered for [project]: a
+/// Pro Tools 10+ session file that is here, on a Mac with PT Peek. A stack
+/// has no file of its own.
+bool offersPtPeek(MusicProject project, {required bool ptPeekInstalled}) =>
+    ptPeekInstalled &&
+    !project.isVirtual &&
+    ptPeekHandles(project.filePath) &&
+    File(project.filePath).existsSync();

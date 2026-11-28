@@ -43,6 +43,7 @@ import '../generated/l10n/app_localizations.dart';
 import 'marker_navigation.dart';
 import 'session_actions.dart';
 import 'widgets/latest_capture_section.dart';
+import 'widgets/project_audio_section.dart';
 import 'settings_page.dart' show SettingsPage, SettingsSection;
 import 'preview_share.dart';
 import 'dialogs/archive_project_dialog.dart';
@@ -2054,6 +2055,21 @@ class _ProjectDetailPageState extends ConsumerState<ProjectDetailPage> {
                                       _canReadMidiClips(updatedProject),
                                 ),
                               ],
+                              const SizedBox(height: 24),
+                            ],
+                          ),
+                        // The project's audio files (v3.0.6): confirmed by
+                        // its session, or found in its folder. Desktop only —
+                        // it reads files on this computer.
+                        if (!MobileUtils.isMobile())
+                          _DetailSection(
+                            icon: Icons.library_music_outlined,
+                            label: l10n.audioFilesSection,
+                            children: [
+                              ProjectAudioSection(
+                                key: ValueKey('${updatedProject.id}_audio'),
+                                project: updatedProject,
+                              ),
                               const SizedBox(height: 24),
                             ],
                           ),

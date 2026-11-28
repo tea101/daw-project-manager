@@ -26,6 +26,7 @@ import '../models/project_event.dart';
 import '../services/metadata_extractor.dart';
 import '../services/deadline_notification_service.dart';
 import '../services/project_move_service.dart' show repathProject;
+import '../utils/project_file_type.dart';
 import '../utils/app_paths.dart';
 import '../utils/path_rebase.dart';
 
@@ -1503,7 +1504,11 @@ class ProjectRepository {
     final plan = <AutoStackPlanEntry>[];
     final grouped = groupByImmediateFolder(
       projectsBox.values.where(
-        (project) => !project.hidden && underRoot(project.filePath),
+        (project) =>
+            !project.hidden &&
+            // Standalone audio files (v3.0.6) are not versions of a session.
+            !isStandaloneAudioProject(project) &&
+            underRoot(project.filePath),
       ),
     );
     for (final entry in grouped.entries) {

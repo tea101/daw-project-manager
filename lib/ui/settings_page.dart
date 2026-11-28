@@ -3809,6 +3809,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         return l10n.partsColumn;
       case 'sampleRate':
         return l10n.sampleRateColumn;
+      case 'fileType':
+        return l10n.fileTypeColumn;
     }
     return id;
   }
@@ -4307,6 +4309,43 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
         ),
+        // Standalone audio files (v3.0.6): off by default; off hides, never
+        // deletes.
+        if (!MobileUtils.isMobile()) ...[
+          const SizedBox(height: 12),
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.audio_file_outlined),
+                      const SizedBox(width: 10),
+                      Text(l10n.standaloneAudioTitle,
+                          style: Theme.of(context).textTheme.titleMedium),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(l10n.standaloneAudioSettingHelp,
+                      style: Theme.of(context).textTheme.bodySmall),
+                  const SizedBox(height: 8),
+                  SwitchListTile(
+                    value: ref.watch(standaloneAudioEnabledProvider),
+                    onChanged: (v) => ref
+                        .read(standaloneAudioEnabledProvider.notifier)
+                        .set(v),
+                    title: Text(l10n.standaloneAudioSetting),
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }

@@ -110,6 +110,12 @@ class WaveLabMontageParser {
 
     for (final (tag, text) in _utf16Strings()) {
       if (tag == 'P8\x00\x00') {
+        // An ADM master's relative record, when there is one, comes straight
+        // after its absolute one; a clip record means there wasn't.
+        if (pendingAdm != null) {
+          add(pendingAdm);
+          pendingAdm = null;
+        }
         final bar = text.indexOf('|');
         final abs = bar < 0 ? text : text.substring(0, bar);
         final rel = bar < 0 ? null : text.substring(bar + 1);

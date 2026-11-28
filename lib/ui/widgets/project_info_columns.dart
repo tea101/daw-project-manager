@@ -8,6 +8,7 @@ import '../../providers/providers.dart' show finishedPhaseProvider;
 import '../../utils/audio_format_text.dart';
 import '../../utils/project_summary_text.dart';
 import '../../utils/deadline_text.dart';
+import '../../utils/project_file_type.dart';
 import '../../utils/track_duration.dart';
 import 'release_track_parts_chip.dart';
 import 'semantics_safe.dart';
@@ -30,6 +31,7 @@ const kPartsColumnField = 'parts';
 const kTagsColumnField = 'tags';
 const kDeadlineColumnField = 'deadline';
 const kSampleRateColumnField = 'sampleRate';
+const kFileTypeColumnField = 'fileType';
 
 MusicProject? _projectOf(TrinaColumnRendererContext ctx) =>
     ctx.row.cells['data']?.value as MusicProject?;
@@ -57,6 +59,9 @@ Map<String, TrinaCell> projectInfoCells(MusicProject project) => {
       // Hz, so the column sorts by rate; 0 when the project says none. The
       // renderer adds the bit depth (#213).
       kSampleRateColumnField: TrinaCell(value: project.stats?.sampleRate ?? 0),
+      // The actual file's type ("PTX", "MON", "WAV"); "STACK" for a version
+      // stack, which is no folder on disk (v3.0.6).
+      kFileTypeColumnField: TrinaCell(value: projectFileTypeLabel(project)),
     };
 
 /// The shared columns' cells for a row that isn't a project's.
@@ -67,6 +72,7 @@ Map<String, TrinaCell> emptyProjectInfoCells() => {
       kNotesColumnField: TrinaCell(value: ''),
       kPartsColumnField: TrinaCell(value: 0),
       kSampleRateColumnField: TrinaCell(value: 0),
+      kFileTypeColumnField: TrinaCell(value: ''),
     };
 
 /// The song's length — measured from its audio, or typed in.
@@ -104,6 +110,43 @@ TrinaColumn projectSampleRateColumn({
         final text = audioFormatText(
             stats?.sampleRate, stats?.bitDepth, bitDepthText);
         return text == null ? const SizedBox.shrink() : Text(text);
+      },
+    );
+
+/// The project's file type as a compact label ("PTX", "MON", "WAV"),
+/// sortable and filterable as text. [describe] gives a label's tooltip —
+/// for "STACK", that it is a group of versions, not a folder.
+TrinaColumn projectFileTypeColumn({
+  required String title,
+  String? Function(String label)? describe,
+}) =>
+    TrinaColumn(
+      title: title,
+      field: kFileTypeColumnField,
+      type: TrinaColumnType.text(),
+      enableEditingMode: false,
+      width: 90,
+      minWidth: 70,
+      renderer: (ctx) {
+        final label = '${ctx.cell.value}';
+        if (label.isEmpty) return const SizedBox.shrink();
+        final text = Text(
+          label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+            fontFeatures: [FontFeature.tabularFigures()],
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.5,
+          ),
+        );
+        final tip = describe?.call(label);
+        if (tip == null) return text;
+        return StandaloneTooltip(
+          message: tip,
+          waitDuration: const Duration(milliseconds: 400),
+          child: text,
+        );
       },
     );
 

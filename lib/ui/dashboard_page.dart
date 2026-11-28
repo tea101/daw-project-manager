@@ -93,6 +93,8 @@ import 'widgets/theme_switcher.dart';
 import 'widgets/mobile_mini_player.dart';
 import 'widgets/project_cover_avatar.dart';
 import '../utils/project_visuals.dart';
+import '../utils/project_file_type.dart';
+import '../services/standalone_audio_scanner.dart';
 import '../generated/l10n/app_localizations.dart';
 import 'session_actions.dart';
 import 'midi_library_page.dart';
@@ -837,6 +839,7 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
       // so the progress overlay can show an accurate "X of Y" total before
       // the slow part — per-file metadata extraction — begins below.
       final entitiesByRoot = <ScanRoot, List<FileSystemEntity>>{};
+      final standaloneAudioByRoot = <ScanRoot, List<FileSystemEntity>>{};
       for (final root in repo.getActiveRoots()) {
         if (_scanCancelRequested) break;
         if (kDebugMode) debugPrint('[_scanAll] enumerating root ${root.path}...');
@@ -855,6 +858,13 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
           debugPrint('[_scanAll] root ${root.path}: found ${entities.length} project files');
         }
         entitiesByRoot[root] = entities;
+        // Standalone audio files (v3.0.6), when the setting is on.
+        if (ref.read(standaloneAudioEnabledProvider) && !_scanCancelRequested) {
+          standaloneAudioByRoot[root] = await findStandaloneAudio(
+            root.path,
+            ignoredPaths: ignoredPaths,
+          ).toList();
+        }
       }
 
       if (_scanCancelRequested) {
@@ -897,7 +907,19 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
           foundCount += entities.length;
         }
         processedBeforeThisRoot += entities.length;
-        final foundPaths = entities.map((e) => e.path).toSet();
+        // Standalone audio: names and dates only, never a deep read.
+        final audio = standaloneAudioByRoot[root] ?? const [];
+        if (audio.isNotEmpty) {
+          allFailures.addAll(await repo.upsertManyFromFileSystemEntities(
+            audio,
+            fullMetadata: false,
+          ));
+          foundCount += audio.length;
+        }
+        final foundPaths = {
+          ...entities.map((e) => e.path),
+          ...audio.map((e) => e.path),
+        };
         if (knownPaths.isNotEmpty) {
           for (final path in newlyFoundPaths(foundPaths, knownPaths)) {
             final saved = repo.getByPath(path);
@@ -1921,6 +1943,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
     final customPhases = ref.watch(customPhasesProvider);
     final dawFilter = ref.watch(dawFilterProvider);
     final availableDaws = ref.watch(availableDawsProvider);
+    final fileTypeFilter = ref.watch(fileTypeFilterProvider);
+    final availableFileTypes = ref.watch(availableFileTypesProvider);
     final availableTags = ref.watch(availableTagsProvider);
     final tagFilter = effectiveTagFilter(
       ref.watch(tagFilterProvider),
@@ -5442,6 +5466,31 @@ class _PlutoProjectsTableWithSelectionState
                     },
                   ),
                 ],
+                // File type (v3.0.6): PTX, MON, WAV, STACK… — only types the
+                // library has, and only once there is more than one.
+                if (availableFileTypes.length > 1 || fileTypeFilter != null) ...[
+                  const SizedBox(width: 4),
+                  FilterDropdown<String>(
+                    icon: Icons.description_outlined,
+                    value: fileTypeFilter,
+                    hintText: l10n.filterByFileType,
+                    items: [
+                      DropdownMenuItem<String>(
+                        value: null,
+                        child: Text(l10n.allFileTypes),
+                      ),
+                      ...availableFileTypes.map(
+                        (type) => DropdownMenuItem<String>(
+                          value: type,
+                          child: Text(type),
+                        ),
+                      ),
+                    ],
+                    onChanged: (String? value) {
+                      ref.read(fileTypeFilterProvider.notifier).setType(value);
+                    },
+                  ),
+                ],
                 // Tag filter (#109) — only once some project has a tag.
                 if (availableTags.isNotEmpty) ...[
                   const SizedBox(width: 4),
@@ -8104,12 +8153,24 @@ class _PlutoProjectsTableState extends ConsumerState<_PlutoProjectsTable>
                         const SizedBox.shrink(),
                   ),
                 ),
-              Flexible(child: Text(dawType, overflow: TextOverflow.ellipsis)),
+              // No DAW (a standalone audio file): a dash, not a blank.
+              Flexible(
+                child: Text(
+                  dawType.isEmpty ? '—' : dawType,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           );
 
           return content;
         },
+      ),
+      projectFileTypeColumn(
+        title: AppLocalizations.of(context)!.fileTypeColumn,
+        describe: (label) => label == kStackFileTypeLabel
+            ? AppLocalizations.of(context)!.fileTypeStackTooltip
+            : null,
       ),
       TrinaColumn(
         title: AppLocalizations.of(context)!.bpm,

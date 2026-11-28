@@ -30,6 +30,7 @@ import 'models/music_project.dart';
 import 'providers/providers.dart';
 import 'repository/project_repository.dart';
 import 'services/scanner_service.dart';
+import 'services/standalone_audio_scanner.dart';
 import 'services/deadline_notification_service.dart';
 import 'services/google_drive_sync_service.dart';
 import 'services/update_check_service.dart';
@@ -658,6 +659,18 @@ Future<int> _runInitialScan(
       if (entities.isNotEmpty) {
         await repo.upsertManyFromFileSystemEntities(entities);
         foundCount += entities.length;
+      }
+      // Standalone audio files (v3.0.6), when the setting is on: names only,
+      // never a full read.
+      if (container.read(standaloneAudioEnabledProvider)) {
+        final audio = await findStandaloneAudio(
+          root.path,
+          ignoredPaths: ignoredPaths,
+        ).toList();
+        if (audio.isNotEmpty) {
+          await repo.upsertManyFromFileSystemEntities(audio);
+          entities.addAll(audio);
+        }
       }
       final foundPaths = entities.map((e) => e.path).toSet();
       if (knownPaths.isNotEmpty) {
