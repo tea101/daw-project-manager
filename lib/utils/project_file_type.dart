@@ -20,6 +20,8 @@ const Map<String, String> _labelOverrides = {
   '.alp': 'ALP',
   '.mmpz': 'MMP',
   '.tracktionedit': 'TRACKTION',
+  '.bwproject': 'BWP',
+  '.maschine2': 'MASCHINE',
 };
 
 /// The label a version stack shows: it is a group of versions the app

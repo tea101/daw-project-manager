@@ -125,8 +125,8 @@ TrinaColumn projectFileTypeColumn({
       field: kFileTypeColumnField,
       type: TrinaColumnType.text(),
       enableEditingMode: false,
-      width: 90,
-      minWidth: 70,
+      width: 120,
+      minWidth: 90,
       renderer: (ctx) {
         final label = '${ctx.cell.value}';
         if (label.isEmpty) return const SizedBox.shrink();

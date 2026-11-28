@@ -20,6 +20,7 @@ void main() {
     expect(label('/p/Song Master.aiff'), 'AIF');
     expect(label('/p/Song Master.aif'), 'AIF');
     expect(label('/p/Song.logicx'), 'LOGICX');
+    expect(label('/p/Song.bwproject'), 'BWP');
     expect(label('/p/Song'), kFolderFileTypeLabel);
   });
 
