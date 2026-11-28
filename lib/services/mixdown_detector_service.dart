@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../models/music_project.dart';
+import '../utils/audio_format_info.dart';
 import '../utils/mobile_utils.dart';
+import 'associated_audio/audio_roles.dart';
 
 /// Locates the most recently modified audio file in a project's mixdown/bounce
 /// folder, for use as a fallback preview when no song has been set manually.
@@ -162,10 +164,62 @@ class MixdownDetectorService {
       if (files.isEmpty) continue;
 
       files.sort((a, b) => _modified(b).compareTo(_modified(a)));
-      return files.first;
+      // Newest first, skipping what must never be a preview by itself:
+      // stems, a session's own clips, ADM masters and anything with more
+      // than two channels (the preview player would downmix it unasked).
+      // A folder the user listed as their mixdown folder is theirs to
+      // name — "Audio Files" included — so only the header rules and stems
+      // apply there.
+      final userListed = _userListedDirs(project,
+              customFolders: customFolders,
+              customFoldersByDaw: customFoldersByDaw)
+          .contains(p.normalize(dir.path));
+      final projectDir = File(project.filePath).parent.path;
+      for (final file in files) {
+        if (mayAutoSelect(file.path,
+            projectFolder: projectDir, userListedFolder: userListed)) {
+          return file;
+        }
+      }
     }
 
     return null;
+  }
+
+  /// Reads a candidate's header; overridable in tests.
+  static AudioFormatInfo? Function(String path) readFormat = readAudioFormatSync;
+
+  /// Whether automatic detection may pick [path] as a preview: not a stem,
+  /// a session clip, an ADM master or a multichannel file
+  /// ([autoPreviewRejection]). Reads the file's header — a few small reads,
+  /// only for a file that is about to be offered for playback anyway.
+  static bool mayAutoSelect(
+    String path, {
+    String? projectFolder,
+    bool userListedFolder = false,
+  }) {
+    final rejection = autoPreviewRejection(
+      path,
+      projectFolder: projectFolder,
+      format: readFormat(path),
+    );
+    if (rejection == null) return true;
+    return userListedFolder && rejection == AutoPreviewRejection.sessionClip;
+  }
+
+  static Set<String> _userListedDirs(
+    MusicProject project, {
+    List<String>? customFolders,
+    Map<String, List<String>>? customFoldersByDaw,
+  }) {
+    final projectDir = File(project.filePath).parent.path;
+    return {
+      for (final name in [
+        ...?customFolders,
+        ...?customFoldersByDaw?[project.dawType ?? otherDawKey],
+      ])
+        if (name.isNotEmpty) p.normalize(p.join(projectDir, name)),
+    };
   }
 
   /// Returns the newest audio file in the same directory as [currentPath] if it

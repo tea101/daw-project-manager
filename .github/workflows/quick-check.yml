@@ -1,0 +1,33 @@
+# Fork-only helper for v3.0.6 development: analyses the code and runs the
+# tests listed in .github/quick_tests.txt on every push to the branch, in a
+# few minutes. The full suite runs on the pull request (release.yml).
+name: Quick check (v3.0.6)
+
+on:
+  push:
+    branches: [ 'release/v3.0.6-wavelab' ]
+  workflow_dispatch:
+
+concurrency:
+  group: quick-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2
+        with:
+          flutter-version: 3.47.7
+          channel: 'stable'
+          cache: true
+      - run: flutter pub get
+      - run: cp lib/config/oauth_config.dart.template lib/config/oauth_config.dart
+      - run: dart run build_runner build --delete-conflicting-outputs
+      - run: flutter gen-l10n
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos lib test 2>&1 | tee analyze.txt; grep -E "^\s*error" analyze.txt && exit 1 || true
+      - name: Tests
+        run: flutter test $(grep -v '^#' .github/quick_tests.txt | xargs)
