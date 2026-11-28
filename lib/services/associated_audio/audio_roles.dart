@@ -55,6 +55,12 @@ const Set<String> _bounceFolders = {
 const Set<String> _renderFolders = {'render', 'renders', 'rendered'};
 
 final RegExp _stemWord = RegExp(r'(^|[^a-z])stems?([^a-z]|$)');
+
+/// One object (or object pair) of an immersive mix bounced on its own —
+/// "Song_Object 13-14.wav", "Song Obj 7.wav": a part of the mix, like a stem
+/// (v3.0.6; a real Atmos session's bounce folder held four next to the mix).
+final RegExp _objectPart =
+    RegExp(r'(^|[^a-z])obj(ect)?s?[ _-]*\d+([ _-]+\d+)?([^a-z0-9]|$)');
 final RegExp _masterWord = RegExp(r'(^|[^a-z])master(ed|ing)?([^a-z]|$)');
 final RegExp _mixWord = RegExp(r'(^|[^a-z])(mix|mixdown)([^a-z]|$)');
 
@@ -88,7 +94,9 @@ AudioRole classifyAudioRole(
   final name = p.basenameWithoutExtension(path).toLowerCase();
   final folders = _foldersBetween(path, projectFolder);
 
-  if (_stemWord.hasMatch(name) || folders.any((f) => _stemWord.hasMatch(f))) {
+  if (_stemWord.hasMatch(name) ||
+      _objectPart.hasMatch(name) ||
+      folders.any((f) => _stemWord.hasMatch(f))) {
     return AudioRole.stem;
   }
   if (folders.any(kSessionMediaFolders.contains)) return AudioRole.sessionClip;

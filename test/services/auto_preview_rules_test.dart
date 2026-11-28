@@ -58,6 +58,23 @@ void main() {
     });
   });
 
+  group('object bounces are parts of a mix, not the song', () {
+    test('"_Object 13-14" is a stem, so never an automatic preview', () {
+      final f = bounce('Asward',
+          'Ghetto In the Sky  Dolby Atmos Asward 2_Object 13-14.wav');
+      expect(classifyAudioRole(f), AudioRole.stem);
+      expect(
+          autoPreviewProblem(f, session('Asward', 'Dolby Atmos Asward 2.ptx'),
+              sharedFolder: false),
+          'stem');
+    });
+
+    test('"Objective Mix" and "Object Lessons" are not objects', () {
+      expect(classifyAudioRole('/x/Objective Mix.wav'), AudioRole.mix);
+      expect(classifyAudioRole('/x/Object Lessons.wav'), AudioRole.other);
+    });
+  });
+
   group('autoPreviewProblem', () {
     const tenCh = AudioFormatInfo(
         container: AudioContainer.aiff, channels: 10, sampleRate: 96000);
