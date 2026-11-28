@@ -4879,5 +4879,18 @@
   "revealInFolder": "Показать в папке",
   "standaloneAudioTitle": "Отдельные аудиофайлы",
   "standaloneAudioSettingHelp": "Мастеры и миксы в папках без сессии DAW находятся при сканировании и показываются с типом файла (WAV, AIF…). Выключение скрывает их, но никогда не удаляет.",
-  "standaloneAudioSetting": "Показывать отдельные аудиофайлы"
+  "standaloneAudioSetting": "Показывать отдельные аудиофайлы",
+  "audioIndexProgress": "Чтение аудио: {done} из {total}",
+  "audioIndexCancel": "Остановить чтение (прочитанное сохранится)",
+  "audioFilterHint": "Фильтр по аудио",
+  "audioFilterAll": "Всё аудио",
+  "audioFilterHasAudio": "С аудиофайлами",
+  "audioFilterHasAdm": "С ADM-мастером",
+  "audioFilterMissing": "Отсутствующее аудио",
+  "audioFilterNotIndexed": "Ещё не прочитано",
+  "audioIndexedAt": "Обновлено {time}",
+  "audioFilesReadingFirst": "Аудио этого проекта читается впервые…",
+  "audioOfflineFolders": "Некоторые папки проекта сейчас недоступны (диск не подключён). Показано то, что было найдено там в прошлый раз.",
+  "audioCloudOnlySessions": "Эта сессия хранится в облаке и не загружена на этот компьютер, поэтому не прочитана (чтение загрузило бы её).",
+  "audioCloudOnlyFile": "В облаке, не загружен — не открывался"
 }

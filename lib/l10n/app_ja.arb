@@ -4879,5 +4879,18 @@
   "revealInFolder": "フォルダで表示",
   "standaloneAudioTitle": "単独のオーディオファイル",
   "standaloneAudioSettingHelp": "DAW セッションのないフォルダにあるマスターやミックスをスキャンで見つけ、ファイル形式（WAV、AIF…）とともに一覧に表示します。オフにすると非表示になりますが、削除はしません。",
-  "standaloneAudioSetting": "単独のオーディオファイルを表示"
+  "standaloneAudioSetting": "単独のオーディオファイルを表示",
+  "audioIndexProgress": "オーディオを読み取り中 {done}/{total}",
+  "audioIndexCancel": "読み取りを停止（読み取り済みの内容は保持）",
+  "audioFilterHint": "オーディオで絞り込む",
+  "audioFilterAll": "すべて",
+  "audioFilterHasAudio": "オーディオファイルあり",
+  "audioFilterHasAdm": "ADM マスターあり",
+  "audioFilterMissing": "見つからないオーディオ",
+  "audioFilterNotIndexed": "未読み取り",
+  "audioIndexedAt": "{time} に更新",
+  "audioFilesReadingFirst": "このプロジェクトのオーディオを初めて読み取っています…",
+  "audioOfflineFolders": "このプロジェクトの一部のフォルダが現在利用できません（接続されていないドライブ）。前回見つかった内容をそのまま表示しています。",
+  "audioCloudOnlySessions": "このセッションはクラウドにあり、このコンピュータにダウンロードされていないため読み取っていません（読み取るとダウンロードされます）。",
+  "audioCloudOnlyFile": "クラウド上・未ダウンロードのため開いていません"
 }

@@ -4903,5 +4903,18 @@
   "revealInFolder": "Mostrar na pasta",
   "standaloneAudioTitle": "Arquivos de áudio avulsos",
   "standaloneAudioSettingHelp": "Masters e mixagens em pastas sem sessão de DAW são encontrados nas varreduras e listados com o tipo de arquivo (WAV, AIF…). Desativar oculta esses itens; nunca os exclui.",
-  "standaloneAudioSetting": "Mostrar arquivos de áudio avulsos"
+  "standaloneAudioSetting": "Mostrar arquivos de áudio avulsos",
+  "audioIndexProgress": "Lendo áudio {done} de {total}",
+  "audioIndexCancel": "Parar de ler o áudio (o que já foi lido é mantido)",
+  "audioFilterHint": "Filtrar por áudio",
+  "audioFilterAll": "Todo o áudio",
+  "audioFilterHasAudio": "Com arquivos de áudio",
+  "audioFilterHasAdm": "Com master ADM",
+  "audioFilterMissing": "Áudio ausente",
+  "audioFilterNotIndexed": "Ainda não lido",
+  "audioIndexedAt": "Atualizado em {time}",
+  "audioFilesReadingFirst": "Lendo o áudio deste projeto pela primeira vez…",
+  "audioOfflineFolders": "Algumas pastas deste projeto não estão disponíveis agora (uma unidade não conectada). O que foi encontrado nelas da última vez continua aparecendo.",
+  "audioCloudOnlySessions": "Esta sessão está na nuvem e não foi baixada para este computador, então não foi lida (ler a baixaria).",
+  "audioCloudOnlyFile": "Na nuvem, não baixado — não aberto"
 }

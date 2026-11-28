@@ -4879,5 +4879,18 @@
   "revealInFolder": "Im Ordner zeigen",
   "standaloneAudioTitle": "Eigenständige Audiodateien",
   "standaloneAudioSettingHelp": "Master und Mixe in Ordnern ohne DAW-Session werden beim Scannen gefunden und mit ihrem Dateityp (WAV, AIF…) aufgeführt. Ausschalten blendet sie aus, löscht sie aber nie.",
-  "standaloneAudioSetting": "Eigenständige Audiodateien anzeigen"
+  "standaloneAudioSetting": "Eigenständige Audiodateien anzeigen",
+  "audioIndexProgress": "Audio wird gelesen: {done} von {total}",
+  "audioIndexCancel": "Lesen beenden (bereits Gelesenes bleibt)",
+  "audioFilterHint": "Nach Audio filtern",
+  "audioFilterAll": "Alle",
+  "audioFilterHasAudio": "Mit Audiodateien",
+  "audioFilterHasAdm": "Mit ADM-Master",
+  "audioFilterMissing": "Fehlendes Audio",
+  "audioFilterNotIndexed": "Noch nicht gelesen",
+  "audioIndexedAt": "Aktualisiert {time}",
+  "audioFilesReadingFirst": "Das Audio dieses Projekts wird zum ersten Mal gelesen…",
+  "audioOfflineFolders": "Einige Ordner dieses Projekts sind gerade nicht verfügbar (ein nicht angeschlossenes Laufwerk). Was dort zuletzt gefunden wurde, wird weiter angezeigt.",
+  "audioCloudOnlySessions": "Diese Session liegt in der Cloud und ist nicht auf diesen Computer geladen; sie wurde nicht gelesen (Lesen würde sie herunterladen).",
+  "audioCloudOnlyFile": "In der Cloud, nicht geladen – nicht geöffnet"
 }

@@ -691,6 +691,12 @@ Future<int> _runInitialScan(
     // 3. Mark initial scan as complete
     container.read(initialScanStateProvider.notifier).complete();
 
+    // The audio index (v3.0.6), in the background: only what changed since
+    // the last run is read.
+    Future.delayed(const Duration(seconds: 3), () {
+      unawaited(container.read(audioIndexProvider.notifier).runAll());
+    });
+
     if (kDebugMode) {
       print("Initial scan completed successfully.");
     }

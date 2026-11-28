@@ -4879,5 +4879,18 @@
   "revealInFolder": "Mostrar en la carpeta",
   "standaloneAudioTitle": "Archivos de audio independientes",
   "standaloneAudioSettingHelp": "Los másteres y mezclas en carpetas sin sesión de DAW se encuentran al escanear y se listan con su tipo de archivo (WAV, AIF…). Desactivarlo los oculta; nunca los borra.",
-  "standaloneAudioSetting": "Mostrar archivos de audio independientes"
+  "standaloneAudioSetting": "Mostrar archivos de audio independientes",
+  "audioIndexProgress": "Leyendo audio {done} de {total}",
+  "audioIndexCancel": "Dejar de leer el audio (se conserva lo leído)",
+  "audioFilterHint": "Filtrar por audio",
+  "audioFilterAll": "Todo el audio",
+  "audioFilterHasAudio": "Con archivos de audio",
+  "audioFilterHasAdm": "Con máster ADM",
+  "audioFilterMissing": "Audio que falta",
+  "audioFilterNotIndexed": "Aún sin leer",
+  "audioIndexedAt": "Actualizado {time}",
+  "audioFilesReadingFirst": "Leyendo el audio de este proyecto por primera vez…",
+  "audioOfflineFolders": "Algunas carpetas de este proyecto no están disponibles ahora (una unidad no conectada). Se sigue mostrando lo que se encontró allí la última vez.",
+  "audioCloudOnlySessions": "Esta sesión está en la nube y no se ha descargado a este equipo, así que no se leyó (leerla la descargaría).",
+  "audioCloudOnlyFile": "En la nube, sin descargar: no se abrió"
 }

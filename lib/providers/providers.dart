@@ -28,6 +28,10 @@ import '../utils/project_visuals.dart';
 import '../utils/library_projects.dart';
 import '../utils/project_file_type.dart';
 import '../services/macos_file_integration.dart';
+import '../services/associated_audio/associated_audio_service.dart';
+import '../services/associated_audio/audio_index_jobs.dart';
+import '../services/associated_audio/audio_index_summary.dart';
+import '../repository/audio_index_store.dart';
 import '../utils/media_notification.dart';
 
 import '../generated/l10n/app_localizations.dart';
@@ -614,6 +618,18 @@ final projectsProvider = Provider<List<MusicProject>>((ref) {
         final dawFilter = ref.watch(dawFilterProvider);
         if (dawFilter != null) {
           projects = projects.where((p) => p.dawType == dawFilter).toList();
+        }
+
+        // --- Filter by associated audio (v3.0.6) ---
+        // Watched only while the filter is on: the index updates summaries
+        // as it works, and the list mustn't rebuild for each project then.
+        final audioFilter = ref.watch(audioFilterProvider);
+        if (audioFilter != null) {
+          final summaries = ref.watch(
+              audioIndexProvider.select((s) => s.summaries));
+          projects = projects
+              .where((p) => audioFilterMatches(audioFilter, summaries[p.id]))
+              .toList();
         }
 
         // --- Filter by file type (v3.0.6) ---
@@ -2497,6 +2513,211 @@ class StandaloneAudioEnabledNotifier extends Notifier<bool> {
 final ptPeekInstalledProvider = FutureProvider<bool>(
   (ref) => MacFileIntegration.appInstalled(kPtPeekBundleId),
 );
+
+/// The projects list's audio filter (v3.0.6); null for all. Session-only.
+class AudioFilterNotifier extends Notifier<AudioFilter?> {
+  @override
+  AudioFilter? build() => null;
+
+  void set(AudioFilter? filter) => state = filter;
+}
+
+final audioFilterProvider =
+    NotifierProvider<AudioFilterNotifier, AudioFilter?>(AudioFilterNotifier.new);
+
+/// Where the audio index stands (v3.0.6).
+class AudioIndexState {
+  const AudioIndexState({
+    this.running = false,
+    this.done = 0,
+    this.total = 0,
+    this.current,
+    this.summaries = const {},
+    this.lastIndexed,
+    this.lastIndexedAt,
+  });
+
+  final bool running;
+  final int done;
+  final int total;
+
+  /// The project being read now.
+  final String? current;
+
+  /// Every indexed project's summary, by id (for the list's filters).
+  final Map<String, AudioIndexSummary> summaries;
+
+  /// The project read most recently, so its open page can refresh.
+  final String? lastIndexed;
+  final DateTime? lastIndexedAt;
+
+  AudioIndexState copyWith({
+    bool? running,
+    int? done,
+    int? total,
+    String? current,
+    bool clearCurrent = false,
+    Map<String, AudioIndexSummary>? summaries,
+    String? lastIndexed,
+    DateTime? lastIndexedAt,
+  }) =>
+      AudioIndexState(
+        running: running ?? this.running,
+        done: done ?? this.done,
+        total: total ?? this.total,
+        current: clearCurrent ? null : (current ?? this.current),
+        summaries: summaries ?? this.summaries,
+        lastIndexed: lastIndexed ?? this.lastIndexed,
+        lastIndexedAt: lastIndexedAt ?? this.lastIndexedAt,
+      );
+}
+
+/// How long one project may take before the index moves on (a network
+/// share that stopped answering). Its last known result stays.
+const Duration kAudioIndexProjectTimeout = Duration(minutes: 2);
+
+/// The audio index (v3.0.6): reads each project's associated audio in the
+/// background after every scan — only what changed since last time — and
+/// caches it, so a project's Audio files section is filled without asking.
+/// Desktop only. Device-local (see [AudioIndexStore]). Cancelable; nothing
+/// it does writes to a project file, session or audio file.
+class AudioIndexNotifier extends Notifier<AudioIndexState> {
+  bool _cancel = false;
+  Future<void>? _running;
+  Map<String, AudioIndexSummary> _summaries = {};
+
+  @override
+  AudioIndexState build() {
+    // A profile switch brings a new repository: start again from its index.
+    ref.watch(repositoryProvider);
+    _summaries = {};
+    if (!MobileUtils.isMobile()) Future.microtask(_loadSummaries);
+    return const AudioIndexState();
+  }
+
+  Future<AudioIndexStore?> _store() async {
+    try {
+      final repo = await ref.read(repositoryProvider.future);
+      return AudioIndexStore(repo.profileId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _loadSummaries() async {
+    final store = await _store();
+    if (store == null) return;
+    _summaries = await store.summaries();
+    state = state.copyWith(summaries: Map.unmodifiable(_summaries));
+  }
+
+  /// The cached report for [projectId], or null when never read.
+  Future<AssociatedAudioReport?> cached(String projectId) async =>
+      (await _store())?.get(projectId);
+
+  /// Stops a running pass after the project in hand. What was read stays.
+  void cancel() => _cancel = true;
+
+  /// Reads every project in the list, incrementally. A second call while one
+  /// runs just waits for it.
+  Future<void> runAll() async {
+    if (MobileUtils.isMobile()) return;
+    if (_running != null) return _running;
+    final run = _runAll();
+    _running = run;
+    try {
+      await run;
+    } finally {
+      _running = null;
+    }
+  }
+
+  Future<void> _runAll() async {
+    final store = await _store();
+    if (store == null) return;
+    final all = ref.read(allProjectsStreamProvider).value ?? const <MusicProject>[];
+    final jobs = audioIndexJobs(ref.read(libraryProjectsProvider), all);
+    _cancel = false;
+    state = state.copyWith(running: true, done: 0, total: jobs.length);
+    var sincePublish = 0;
+    for (final job in jobs) {
+      if (_cancel) break;
+      state = state.copyWith(current: job.name);
+      await _index(store, job, force: false);
+      state = state.copyWith(done: state.done + 1);
+      // Summaries go to the list in batches: a filter watching them
+      // rebuilds the list once per batch, not once per project.
+      if (++sincePublish >= 25) {
+        sincePublish = 0;
+        state = state.copyWith(summaries: Map.unmodifiable(_summaries));
+      }
+    }
+    if (!_cancel) {
+      await store.retainOnly({for (final p in all) p.id});
+      _summaries.removeWhere((id, _) => !all.any((p) => p.id == id));
+    }
+    state = state.copyWith(
+      running: false,
+      clearCurrent: true,
+      summaries: Map.unmodifiable(_summaries),
+    );
+  }
+
+  /// Reads one project now — its page asked, or "Read again". [force]
+  /// re-reads everything, ignoring what is cached.
+  Future<AssociatedAudioReport?> indexOne(MusicProject project,
+      {bool force = false}) async {
+    if (MobileUtils.isMobile()) return null;
+    final store = await _store();
+    if (store == null) return null;
+    final all = ref.read(allProjectsStreamProvider).value ?? const <MusicProject>[];
+    final sources = audioSourcesFor(project, stackMembers: [
+      for (final m in all)
+        if (m.stackId == project.id) m,
+    ]);
+    if (sources.sessions.isEmpty) return null;
+    final report = await _index(
+      store,
+      AudioIndexJob(
+        projectId: project.id,
+        name: project.displayName,
+        sessions: sources.sessions,
+        folders: sources.folders,
+      ),
+      force: force,
+    );
+    state = state.copyWith(summaries: Map.unmodifiable(_summaries));
+    return report;
+  }
+
+  Future<AssociatedAudioReport?> _index(
+    AudioIndexStore store,
+    AudioIndexJob job, {
+    required bool force,
+  }) async {
+    try {
+      final previous = force ? null : await store.get(job.projectId);
+      final report = await readAssociatedAudio(
+        sessionPaths: job.sessions,
+        folders: job.folders,
+        previous: previous,
+      ).timeout(kAudioIndexProjectTimeout);
+      await store.put(job.projectId, report);
+      _summaries[job.projectId] = AudioIndexSummary.of(report);
+      state = state.copyWith(
+        lastIndexed: job.projectId,
+        lastIndexedAt: DateTime.now(),
+      );
+      return report;
+    } catch (_) {
+      // Unreadable or too slow: the last known result stays.
+      return null;
+    }
+  }
+}
+
+final audioIndexProvider =
+    NotifierProvider<AudioIndexNotifier, AudioIndexState>(AudioIndexNotifier.new);
 
 final standaloneAudioEnabledProvider =
     NotifierProvider<StandaloneAudioEnabledNotifier, bool>(

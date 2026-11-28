@@ -3,8 +3,8 @@ import 'dart:isolate';
 
 import 'package:path/path.dart' as p;
 
-import '../../models/sample_reference.dart';
 import '../../utils/audio_format_info.dart';
+import '../../utils/cloud_file.dart';
 import '../daw_parsers/wavelab_montage_parser.dart';
 import '../sample_pack/project_sample_reader.dart';
 import 'audio_roles.dart';
@@ -28,6 +28,9 @@ class AssociatedAudioFile {
     this.exists = true,
     this.format,
     this.sessionPath,
+    this.sizeBytes,
+    this.modifiedMs,
+    this.cloudOnly = false,
   });
 
   /// Where the file is — or, for a missing confirmed file, where the session
@@ -40,22 +43,133 @@ class AssociatedAudioFile {
   final bool exists;
 
   /// What the file's header says; null when it couldn't be read (missing,
-  /// or a format without a header reader: MP3, AAC).
+  /// cloud-only, or a format without a header reader: MP3, AAC).
   final AudioFormatInfo? format;
 
   /// The session that referred to it (confirmed files only).
   final String? sessionPath;
 
+  /// Size and modification time when it was last looked at: an unchanged
+  /// file is never opened again.
+  final int? sizeBytes;
+  final int? modifiedMs;
+
+  /// Its contents are with a cloud provider, not on this computer: its
+  /// header was not read, so as not to download it.
+  final bool cloudOnly;
+
   String get fileName => p.basename(path);
 
-  AssociatedAudioFile withFormat(AudioFormatInfo? format) => AssociatedAudioFile(
+  AssociatedAudioFile copyWith({
+    AudioOrigin? origin,
+    AudioRole? role,
+    String? sessionPath,
+  }) =>
+      AssociatedAudioFile(
         path: path,
-        origin: origin,
-        role: format != null && format.isAdm ? AudioRole.admMaster : role,
+        origin: origin ?? this.origin,
+        role: role ?? this.role,
         exists: exists,
         format: format,
-        sessionPath: sessionPath,
+        sessionPath: sessionPath ?? this.sessionPath,
+        sizeBytes: sizeBytes,
+        modifiedMs: modifiedMs,
+        cloudOnly: cloudOnly,
       );
+
+  Map<String, Object?> toJson() => {
+        'p': path,
+        'o': origin.name,
+        'r': role.name,
+        if (!exists) 'x': false,
+        if (format != null) 'f': format!.toJson(),
+        if (sessionPath != null) 's': sessionPath,
+        if (sizeBytes != null) 'z': sizeBytes,
+        if (modifiedMs != null) 'm': modifiedMs,
+        if (cloudOnly) 'c': true,
+      };
+
+  static AssociatedAudioFile? fromJson(Object? json) {
+    if (json is! Map || json['p'] is! String) return null;
+    AudioOrigin origin = AudioOrigin.discovered;
+    for (final o in AudioOrigin.values) {
+      if (o.name == json['o']) origin = o;
+    }
+    AudioRole role = AudioRole.other;
+    for (final r in AudioRole.values) {
+      if (r.name == json['r']) role = r;
+    }
+    return AssociatedAudioFile(
+      path: json['p'] as String,
+      origin: origin,
+      role: role,
+      exists: json['x'] != false,
+      format: AudioFormatInfo.fromJson(json['f']),
+      sessionPath: json['s'] as String?,
+      sizeBytes: json['z'] as int?,
+      modifiedMs: json['m'] as int?,
+      cloudOnly: json['c'] == true,
+    );
+  }
+}
+
+/// What one session said, kept so an unchanged session isn't read again.
+class SessionRecord {
+  const SessionRecord({
+    required this.path,
+    this.sizeBytes,
+    this.modifiedMs,
+    this.refs,
+  });
+
+  final String path;
+  final int? sizeBytes;
+  final int? modifiedMs;
+
+  /// Its audio references; null when it couldn't be read.
+  final List<SessionAudioRef>? refs;
+
+  Map<String, Object?> toJson() => {
+        'p': path,
+        if (sizeBytes != null) 'z': sizeBytes,
+        if (modifiedMs != null) 'm': modifiedMs,
+        if (refs != null) 'r': [for (final r in refs!) r.toJson()],
+      };
+
+  static SessionRecord? fromJson(Object? json) {
+    if (json is! Map || json['p'] is! String) return null;
+    final refs = json['r'];
+    return SessionRecord(
+      path: json['p'] as String,
+      sizeBytes: json['z'] as int?,
+      modifiedMs: json['m'] as int?,
+      refs: refs is List
+          ? [
+              for (final r in refs)
+                if (SessionAudioRef.fromJson(r) case final ref?) ref,
+            ]
+          : null,
+    );
+  }
+}
+
+/// One audio file a session names: where it may be, most specific first.
+class SessionAudioRef {
+  const SessionAudioRef({required this.candidates, this.admSource = false});
+
+  final List<String> candidates;
+
+  /// A WaveLab montage's ADM master (the file it was imported from).
+  final bool admSource;
+
+  Map<String, Object?> toJson() => {'c': candidates, if (admSource) 'a': true};
+
+  static SessionAudioRef? fromJson(Object? json) {
+    if (json is! Map || json['c'] is! List) return null;
+    final c = [for (final x in json['c'] as List) if (x is String) x];
+    if (c.isEmpty) return null;
+    return SessionAudioRef(candidates: c, admSource: json['a'] == true);
+  }
 }
 
 /// Whether DAW Project Manager can read which audio files a session at
@@ -66,8 +180,10 @@ bool canReadSessionAudio(String sessionPath) {
   return ext == '.mon' || canReadSampleReferences(sessionPath);
 }
 
-/// What was found for a project: its folder, its sessions, and the audio
-/// confirmed by them or discovered beside them.
+/// What is known about a project's audio: its sessions, the files they
+/// confirm, the other audio found in its folders, and when that was read.
+/// This is what the audio index caches per project (device-local: paths name
+/// places on this computer).
 class AssociatedAudioReport {
   const AssociatedAudioReport({
     required this.sessionPaths,
@@ -76,6 +192,10 @@ class AssociatedAudioReport {
     required this.discovered,
     required this.unreadableSessions,
     this.truncated = false,
+    this.indexedAt,
+    this.offlineFolders = const [],
+    this.cloudOnlySessions = const [],
+    this.sessions = const {},
   });
 
   /// The DAW sessions that were read (or tried).
@@ -98,8 +218,70 @@ class AssociatedAudioReport {
   /// The folder search stopped at [kMaxDiscoveredAudio] files.
   final bool truncated;
 
+  /// When this was read.
+  final DateTime? indexedAt;
+
+  /// Folders that weren't there when this was read (a drive not connected):
+  /// what was known of them before is kept, not dropped.
+  final List<String> offlineFolders;
+
+  /// Sessions with a cloud provider, not on this computer: not read, so as
+  /// not to download them.
+  final List<String> cloudOnlySessions;
+
+  /// What each session said, by path, for the next incremental read.
+  final Map<String, SessionRecord> sessions;
+
   List<AssociatedAudioFile> get missing =>
       confirmed.where((f) => !f.exists).toList();
+
+  /// Every file present, confirmed or discovered.
+  Iterable<AssociatedAudioFile> get present =>
+      [...confirmed, ...discovered].where((f) => f.exists);
+
+  bool get hasAdm => present.any((f) => f.role == AudioRole.admMaster);
+
+  Map<String, Object?> toJson() => {
+        'v': 1,
+        'sp': sessionPaths,
+        'fo': folders,
+        'cf': [for (final f in confirmed) f.toJson()],
+        'df': [for (final f in discovered) f.toJson()],
+        'us': unreadableSessions,
+        if (truncated) 'tr': true,
+        if (indexedAt != null) 'at': indexedAt!.toUtc().millisecondsSinceEpoch,
+        if (offlineFolders.isNotEmpty) 'of': offlineFolders,
+        if (cloudOnlySessions.isNotEmpty) 'cs': cloudOnlySessions,
+        'ss': [for (final s in sessions.values) s.toJson()],
+      };
+
+  static AssociatedAudioReport? fromJson(Object? json) {
+    if (json is! Map || json['v'] != 1) return null;
+    List<String> strings(String k) =>
+        [for (final x in (json[k] as List?) ?? const []) if (x is String) x];
+    List<AssociatedAudioFile> files(String k) => [
+          for (final x in (json[k] as List?) ?? const [])
+            if (AssociatedAudioFile.fromJson(x) case final f?) f,
+        ];
+    final at = json['at'];
+    return AssociatedAudioReport(
+      sessionPaths: strings('sp'),
+      folders: strings('fo'),
+      confirmed: files('cf'),
+      discovered: files('df'),
+      unreadableSessions: strings('us'),
+      truncated: json['tr'] == true,
+      indexedAt: at is int
+          ? DateTime.fromMillisecondsSinceEpoch(at, isUtc: true).toLocal()
+          : null,
+      offlineFolders: strings('of'),
+      cloudOnlySessions: strings('cs'),
+      sessions: {
+        for (final x in (json['ss'] as List?) ?? const [])
+          if (SessionRecord.fromJson(x) case final s?) s.path: s,
+      },
+    );
+  }
 }
 
 /// The most files listed as discovered, so a project in a folder full of
@@ -122,82 +304,288 @@ const Set<String> _skippedFolders = {
   '__macosx',
 };
 
-/// Reads which audio files belong to a project, for the project page.
+/// The file system as the indexer sees it. Every call only asks about a
+/// file (its size, date, cloud status) or reads the few bytes it needs; the
+/// default is the real disk, and tests count what is read.
+class AudioIndexIo {
+  const AudioIndexIo();
+
+  /// Size and modification time, or null when it isn't there.
+  ({int size, int modifiedMs})? stat(String path) {
+    try {
+      final s = File(path).statSync();
+      if (s.type != FileSystemEntityType.file) return null;
+      return (size: s.size, modifiedMs: s.modified.millisecondsSinceEpoch);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  bool directoryExists(String path) {
+    try {
+      return Directory(path).existsSync();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Entries directly in [path]: files and folders, by full path.
+  List<(String, bool)> list(String path) {
+    try {
+      return [
+        for (final e in Directory(path).listSync(followLinks: false))
+          if (e is File || e is Directory) (e.path, e is Directory),
+      ];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  bool isCloudOnly(String path) {
+    try {
+      return isCloudOnlyFile(path);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  AudioFormatInfo? readFormat(String path) => readAudioFormatSync(path);
+
+  /// The session's audio references, or null when they can't be read.
+  List<SessionAudioRef>? readSession(String path) {
+    final ext = p.extension(path).toLowerCase();
+    try {
+      if (ext == '.mon') {
+        final parser = WaveLabMontageParser(File(path).readAsBytesSync());
+        if (!parser.isMontage) return null;
+        return [
+          for (final r in parser.readAudioReferences())
+            if (r.candidates.isNotEmpty)
+              SessionAudioRef(
+                candidates: r.candidates,
+                admSource: r.role == WaveLabAudioRole.admSource,
+              ),
+        ];
+      }
+      if (canReadSampleReferences(path)) {
+        return [
+          for (final r in sampleReferencesFromBytes(ext, File(path).readAsBytesSync()))
+            if (r.candidates.isNotEmpty) SessionAudioRef(candidates: r.candidates),
+        ];
+      }
+    } catch (_) {}
+    return null;
+  }
+}
+
+/// Reads which audio files belong to a project, using what [previous] (the
+/// cached result) already knows:
 ///
-/// [sessionPaths] are the DAW sessions to read (one, or a stack's versions);
-/// [folders] are searched for any other audio. Nothing is written, moved or
-/// renamed. Only what a session needs is read: each session file, then the
-/// headers of the audio files found (a few small reads each, never the
-/// audio itself).
-Future<AssociatedAudioReport> readAssociatedAudio({
+/// * a session whose size and date haven't changed isn't read again;
+/// * an audio file whose size and date haven't changed keeps its header
+///   details without being opened;
+/// * a cloud-only file (its contents with a cloud provider) is never opened,
+///   so nothing is downloaded — it is listed, marked as such;
+/// * a folder that isn't there (a drive not connected) keeps what was known
+///   of it before, marked offline, rather than losing it.
+///
+/// Nothing is written, moved or renamed. Synchronous: run it in a
+/// background isolate ([readAssociatedAudio] does).
+AssociatedAudioReport indexProjectAudio({
   required List<String> sessionPaths,
   required List<String> folders,
-}) async {
-  final confirmed = <AssociatedAudioFile>[];
-  final unreadable = <String>[];
+  AssociatedAudioReport? previous,
+  AudioIndexIo io = const AudioIndexIo(),
+  DateTime? now,
+}) {
+  final prevFiles = <String, AssociatedAudioFile>{
+    for (final f in [...?previous?.confirmed, ...?previous?.discovered])
+      _key(f.path): f,
+  };
   final seen = <String>{};
 
+  AssociatedAudioFile describe(
+    String path, {
+    required AudioOrigin origin,
+    required String? projectFolder,
+    String? sessionPath,
+    bool admSource = false,
+  }) {
+    final st = io.stat(path);
+    AudioRole role(AudioFormatInfo? format) => admSource
+        ? AudioRole.admMaster
+        : classifyAudioRole(path, projectFolder: projectFolder, format: format);
+    if (st == null) {
+      return AssociatedAudioFile(
+        path: path,
+        origin: origin,
+        role: role(null),
+        exists: false,
+        sessionPath: sessionPath,
+      );
+    }
+    final prev = prevFiles[_key(path)];
+    AudioFormatInfo? format;
+    var cloudOnly = false;
+    if (prev != null &&
+        prev.exists &&
+        !prev.cloudOnly &&
+        prev.sizeBytes == st.size &&
+        prev.modifiedMs == st.modifiedMs) {
+      // Unchanged since last time: never opened again.
+      format = prev.format;
+    } else if (io.isCloudOnly(path)) {
+      cloudOnly = true;
+    } else {
+      format = io.readFormat(path);
+    }
+    return AssociatedAudioFile(
+      path: path,
+      origin: origin,
+      role: role(format),
+      exists: true,
+      format: format,
+      sessionPath: sessionPath,
+      sizeBytes: st.size,
+      modifiedMs: st.modifiedMs,
+      cloudOnly: cloudOnly,
+    );
+  }
+
+  // Sessions: confirmed references.
+  final sessions = <String, SessionRecord>{};
+  final confirmed = <AssociatedAudioFile>[];
+  final unreadable = <String>[];
+  final cloudSessions = <String>[];
   for (final session in sessionPaths) {
-    final refs = await _sessionReferences(session);
+    final prev = previous?.sessions[session];
+    final st = io.stat(session);
+    List<SessionAudioRef>? refs;
+    SessionRecord record;
+    if (st == null) {
+      // Not here (a drive not connected): what was known last time stands,
+      // files and all — they aren't "missing", only out of reach.
+      if (prev != null) {
+        sessions[session] = prev;
+        for (final f in previous?.confirmed ?? const <AssociatedAudioFile>[]) {
+          if (f.sessionPath == session && seen.add(_key(f.path))) {
+            confirmed.add(f);
+          }
+        }
+      } else {
+        unreadable.add(session);
+      }
+      continue;
+    } else if (prev != null &&
+        prev.refs != null &&
+        prev.sizeBytes == st.size &&
+        prev.modifiedMs == st.modifiedMs) {
+      refs = prev.refs;
+      record = prev;
+    } else if (!canReadSessionAudio(session)) {
+      record = SessionRecord(
+          path: session, sizeBytes: st.size, modifiedMs: st.modifiedMs);
+    } else if (io.isCloudOnly(session)) {
+      cloudSessions.add(session);
+      refs = prev?.refs;
+      record = prev ?? SessionRecord(path: session);
+    } else {
+      refs = io.readSession(session);
+      record = SessionRecord(
+        path: session,
+        sizeBytes: st.size,
+        modifiedMs: st.modifiedMs,
+        refs: refs,
+      );
+    }
+    sessions[session] = record;
     if (refs == null) {
-      unreadable.add(session);
+      if (!cloudSessions.contains(session)) unreadable.add(session);
       continue;
     }
     final base = p.dirname(session);
     for (final ref in refs) {
-      final resolved = _resolve(ref.candidates, base);
+      final resolved = _resolve(ref.candidates, base, io);
       final path = resolved ?? _firstAbsolute(ref.candidates, base);
-      final key = _key(path);
-      if (!seen.add(key)) continue;
-      confirmed.add(AssociatedAudioFile(
-        path: path,
+      if (!seen.add(_key(path))) continue;
+      confirmed.add(describe(
+        path,
         origin: AudioOrigin.confirmed,
-        role: ref.admSource
-            ? AudioRole.admMaster
-            : classifyAudioRole(path, projectFolder: base),
-        exists: resolved != null,
+        projectFolder: base,
         sessionPath: session,
+        admSource: ref.admSource,
       ));
     }
   }
 
-  final found = await Isolate.run(() => _findAudio(folders));
+  // Folders: everything else.
   final discovered = <AssociatedAudioFile>[];
-  for (final path in found.paths) {
-    if (!seen.add(_key(path))) continue;
-    final folder = folders.firstWhere(
-      (f) => p.isWithin(f, path) || p.equals(f, p.dirname(path)),
-      orElse: () => p.dirname(path),
-    );
-    discovered.add(AssociatedAudioFile(
-      path: path,
-      origin: AudioOrigin.discovered,
-      role: classifyAudioRole(path, projectFolder: folder),
-    ));
+  final offline = <String>[];
+  var truncated = false;
+  for (final folder in folders) {
+    if (!io.directoryExists(folder)) {
+      offline.add(folder);
+      for (final f in previous?.discovered ?? const <AssociatedAudioFile>[]) {
+        if (p.isWithin(folder, f.path) && seen.add(_key(f.path))) {
+          discovered.add(f);
+        }
+      }
+      continue;
+    }
+    void walk(String dir, int depth) {
+      if (truncated) return;
+      final entries = io.list(dir)..sort((a, b) => a.$1.compareTo(b.$1));
+      for (final (path, isDir) in entries) {
+        final name = p.basename(path);
+        if (name.startsWith('.')) continue; // hidden, and AppleDouble "._x"
+        if (!isDir) {
+          if (!kAssociatedAudioExtensions
+              .contains(p.extension(name).toLowerCase())) {
+            continue;
+          }
+          if (!seen.add(_key(path))) continue;
+          if (discovered.length >= kMaxDiscoveredAudio) {
+            truncated = true;
+            return;
+          }
+          discovered.add(describe(path,
+              origin: AudioOrigin.discovered, projectFolder: folder));
+        } else if (depth < kAudioSearchDepth &&
+            !_skippedFolders.contains(name.toLowerCase())) {
+          walk(path, depth + 1);
+        }
+      }
+    }
+
+    walk(folder, 0);
   }
-
-  // Headers, all in one background isolate.
-  final toRead = [
-    for (final f in [...confirmed, ...discovered])
-      if (f.exists) f.path,
-  ];
-  final formats = await Isolate.run(() => {
-        for (final path in toRead) path: readAudioFormatSync(path),
-      });
-
-  List<AssociatedAudioFile> withFormats(List<AssociatedAudioFile> files) => [
-        for (final f in files) f.exists ? f.withFormat(formats[f.path]) : f,
-      ];
+  discovered.sort(_byRoleThenName);
 
   return AssociatedAudioReport(
     sessionPaths: sessionPaths,
     folders: folders,
-    confirmed: withFormats(confirmed),
-    discovered: withFormats(discovered)..sort(_byRoleThenName),
+    confirmed: confirmed,
+    discovered: discovered,
     unreadableSessions: unreadable,
-    truncated: found.truncated,
+    truncated: truncated,
+    indexedAt: now ?? DateTime.now(),
+    offlineFolders: offline,
+    cloudOnlySessions: cloudSessions,
+    sessions: sessions,
   );
 }
+
+/// [indexProjectAudio] in a background isolate, with nothing cached.
+Future<AssociatedAudioReport> readAssociatedAudio({
+  required List<String> sessionPaths,
+  required List<String> folders,
+  AssociatedAudioReport? previous,
+}) =>
+    Isolate.run(() => indexProjectAudio(
+          sessionPaths: sessionPaths,
+          folders: folders,
+          previous: previous,
+        ));
 
 int _byRoleThenName(AssociatedAudioFile a, AssociatedAudioFile b) {
   final r = a.role.index.compareTo(b.role.index);
@@ -211,12 +599,10 @@ String _key(String path) {
 }
 
 /// The first candidate that exists: relative ones from [base].
-String? _resolve(List<String> candidates, String base) {
+String? _resolve(List<String> candidates, String base, AudioIndexIo io) {
   for (final c in candidates) {
     final path = p.isAbsolute(c) ? p.normalize(c) : p.normalize(p.join(base, c));
-    try {
-      if (File(path).existsSync()) return path;
-    } catch (_) {}
+    if (io.stat(path) != null) return path;
   }
   return null;
 }
@@ -226,77 +612,4 @@ String _firstAbsolute(List<String> candidates, String base) {
     if (p.isAbsolute(c)) return p.normalize(c);
   }
   return p.normalize(p.join(base, candidates.first));
-}
-
-typedef _Ref = ({List<String> candidates, bool admSource});
-
-/// The audio references of [session], or null when they can't be read.
-Future<List<_Ref>?> _sessionReferences(String session) async {
-  final ext = p.extension(session).toLowerCase();
-  try {
-    if (ext == '.mon') {
-      final bytes = await File(session).readAsBytes();
-      final parser = WaveLabMontageParser(bytes);
-      if (!parser.isMontage) return null;
-      return [
-        for (final r in parser.readAudioReferences())
-          if (r.candidates.isNotEmpty)
-            (
-              candidates: r.candidates,
-              admSource: r.role == WaveLabAudioRole.admSource,
-            ),
-      ];
-    }
-    if (canReadSampleReferences(session)) {
-      final refs = await readProjectSampleReferences(session);
-      return [
-        for (final SampleReference r in refs)
-          if (r.candidates.isNotEmpty) (candidates: r.candidates, admSource: false),
-      ];
-    }
-  } catch (_) {
-    return null;
-  }
-  return null;
-}
-
-({List<String> paths, bool truncated}) _findAudio(List<String> folders) {
-  final out = <String>[];
-  final seen = <String>{};
-  var truncated = false;
-
-  void walk(Directory dir, int depth) {
-    if (truncated) return;
-    List<FileSystemEntity> entries;
-    try {
-      entries = dir.listSync(followLinks: false);
-    } catch (_) {
-      return;
-    }
-    entries.sort((a, b) => a.path.compareTo(b.path));
-    for (final e in entries) {
-      final name = p.basename(e.path);
-      if (name.startsWith('.')) continue; // hidden, and AppleDouble "._x"
-      if (e is File) {
-        if (!kAssociatedAudioExtensions.contains(p.extension(name).toLowerCase())) {
-          continue;
-        }
-        if (!seen.add(e.path)) continue;
-        if (out.length >= kMaxDiscoveredAudio) {
-          truncated = true;
-          return;
-        }
-        out.add(e.path);
-      } else if (e is Directory && depth < kAudioSearchDepth) {
-        if (_skippedFolders.contains(name.toLowerCase())) continue;
-        walk(e, depth + 1);
-      }
-    }
-  }
-
-  for (final folder in folders) {
-    final dir = Directory(folder);
-    if (dir.existsSync()) walk(dir, 0);
-  }
-  return (paths: out, truncated: truncated);
 }

@@ -4879,5 +4879,18 @@
   "revealInFolder": "在文件夹中显示",
   "standaloneAudioTitle": "独立音频文件",
   "standaloneAudioSettingHelp": "扫描时会找到没有 DAW 会话的文件夹中的母带和混音，并按文件类型（WAV、AIF…）列出。关闭后它们会被隐藏，但绝不会被删除。",
-  "standaloneAudioSetting": "显示独立音频文件"
+  "standaloneAudioSetting": "显示独立音频文件",
+  "audioIndexProgress": "正在读取音频 {done}/{total}",
+  "audioIndexCancel": "停止读取音频（已读取的内容会保留）",
+  "audioFilterHint": "按音频筛选",
+  "audioFilterAll": "全部音频",
+  "audioFilterHasAudio": "有音频文件",
+  "audioFilterHasAdm": "有 ADM 母带",
+  "audioFilterMissing": "缺失音频",
+  "audioFilterNotIndexed": "尚未读取",
+  "audioIndexedAt": "更新于 {time}",
+  "audioFilesReadingFirst": "正在首次读取此项目的音频…",
+  "audioOfflineFolders": "此项目的部分文件夹当前不可用（驱动器未连接）。仍显示上次在那里找到的内容。",
+  "audioCloudOnlySessions": "此会话存储在云端，未下载到这台电脑，因此未读取（读取会触发下载）。",
+  "audioCloudOnlyFile": "在云端，未下载——未打开"
 }

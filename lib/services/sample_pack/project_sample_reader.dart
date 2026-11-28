@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 import 'package:xml/xml.dart';
@@ -33,32 +34,37 @@ Future<List<SampleReference>> readProjectSampleReferences(
     throw UnsupportedError('No sample reader for $ext');
   }
   final bytes = await File(filePath).readAsBytes();
-  return Isolate.run(() {
-    switch (ext) {
-      case '.cpr':
-      case '.npr':
-        final parser = CubaseProjectParser(bytes);
-        if (!parser.isCubaseFile) {
-          throw const FormatException('Not a Cubase project');
-        }
-        return parser.readSampleReferences();
-      case '.als':
-        // Gzipped since Live 8; plain XML before.
-        String xml;
-        try {
-          xml = utf8.decode(gzip.decode(bytes), allowMalformed: true);
-        } on FormatException {
-          xml = utf8.decode(bytes, allowMalformed: true);
-        }
-        return AbletonProjectParser(XmlDocument.parse(xml))
-            .readSampleReferences();
-      case '.flp':
-        return FlpProjectParser(bytes).readSampleReferences();
-      case '.rpp':
-        return ReaperProjectParser(utf8.decode(bytes, allowMalformed: true))
-            .readSampleReferences();
-      default:
-        return StudioOneProjectParser(bytes).readSampleReferences();
-    }
-  });
+  return Isolate.run(() => sampleReferencesFromBytes(ext, bytes));
+}
+
+/// [readProjectSampleReferences] on the calling isolate, from the project's
+/// bytes: for code already running in a background isolate (the audio
+/// index). [ext] is the project's lowercase extension with its dot.
+List<SampleReference> sampleReferencesFromBytes(String ext, Uint8List bytes) {
+  switch (ext) {
+    case '.cpr':
+    case '.npr':
+      final parser = CubaseProjectParser(bytes);
+      if (!parser.isCubaseFile) {
+        throw const FormatException('Not a Cubase project');
+      }
+      return parser.readSampleReferences();
+    case '.als':
+      // Gzipped since Live 8; plain XML before.
+      String xml;
+      try {
+        xml = utf8.decode(gzip.decode(bytes), allowMalformed: true);
+      } on FormatException {
+        xml = utf8.decode(bytes, allowMalformed: true);
+      }
+      return AbletonProjectParser(XmlDocument.parse(xml))
+          .readSampleReferences();
+    case '.flp':
+      return FlpProjectParser(bytes).readSampleReferences();
+    case '.rpp':
+      return ReaperProjectParser(utf8.decode(bytes, allowMalformed: true))
+          .readSampleReferences();
+    default:
+      return StudioOneProjectParser(bytes).readSampleReferences();
+  }
 }

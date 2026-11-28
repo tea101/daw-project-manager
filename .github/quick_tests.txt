@@ -16,3 +16,4 @@ test/ui/no_ref_in_dispose_test.dart
 test/providers/custom_fields_provider_test.dart
 test/ui/widgets/columns_and_fields_settings_test.dart
 test/ui/widgets/release_tracks_table_columns_test.dart
+test/services/audio_index_test.dart

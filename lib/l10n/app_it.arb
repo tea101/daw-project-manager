@@ -4879,5 +4879,18 @@
   "revealInFolder": "Mostra nella cartella",
   "standaloneAudioTitle": "File audio autonomi",
   "standaloneAudioSettingHelp": "Master e mix in cartelle senza sessione DAW vengono trovati dalle scansioni ed elencati con il loro tipo di file (WAV, AIF…). Disattivarlo li nasconde; non li elimina mai.",
-  "standaloneAudioSetting": "Mostra i file audio autonomi"
+  "standaloneAudioSetting": "Mostra i file audio autonomi",
+  "audioIndexProgress": "Lettura audio {done} di {total}",
+  "audioIndexCancel": "Interrompi la lettura (quanto letto resta)",
+  "audioFilterHint": "Filtra per audio",
+  "audioFilterAll": "Tutto l’audio",
+  "audioFilterHasAudio": "Con file audio",
+  "audioFilterHasAdm": "Con master ADM",
+  "audioFilterMissing": "Audio mancante",
+  "audioFilterNotIndexed": "Non ancora letto",
+  "audioIndexedAt": "Aggiornato {time}",
+  "audioFilesReadingFirst": "Prima lettura dell’audio di questo progetto…",
+  "audioOfflineFolders": "Alcune cartelle di questo progetto non sono disponibili ora (un’unità non collegata). Resta visibile quanto trovato l’ultima volta.",
+  "audioCloudOnlySessions": "Questa sessione è nel cloud e non è scaricata su questo computer, quindi non è stata letta (leggerla la scaricherebbe).",
+  "audioCloudOnlyFile": "Nel cloud, non scaricato — non aperto"
 }

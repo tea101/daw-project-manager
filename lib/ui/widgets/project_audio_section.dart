@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
+import 'package:intl/intl.dart';
 import 'package:path/path.dart' as p;
 
 import '../../generated/l10n/app_localizations.dart';
@@ -10,10 +11,11 @@ import '../../models/music_project.dart';
 import '../../providers/providers.dart';
 import '../../services/app_audio_focus.dart';
 import '../../services/associated_audio/associated_audio_service.dart';
+import '../../services/associated_audio/audio_index_jobs.dart';
 import '../../services/associated_audio/audio_roles.dart';
+export '../../services/associated_audio/audio_index_jobs.dart' show audioSourcesFor;
 import '../../services/macos_file_integration.dart';
 import '../../services/player_volume_store.dart';
-import '../../services/scanner_service.dart';
 import '../../services/song_player.dart';
 import '../../utils/audio_format_info.dart';
 import '../../utils/audio_format_text.dart';
@@ -22,35 +24,6 @@ import '../../utils/project_file_type.dart';
 import '../../utils/track_duration.dart';
 import '../app_snack_bar.dart';
 import 'semantics_safe.dart';
-
-/// The sessions and folders to look in for [project]'s audio.
-///
-/// A version stack is a group the app keeps, not a folder on disk: its
-/// versions' sessions are read and *their* folders searched — never the
-/// stack's own path as if it were a folder of its own. A standalone audio
-/// row has neither.
-({List<String> sessions, List<String> folders}) audioSourcesFor(
-  MusicProject project, {
-  List<MusicProject> stackMembers = const [],
-}) {
-  if (isStandaloneAudioProject(project)) {
-    return (sessions: const [], folders: const []);
-  }
-  if (project.isVirtual) {
-    final sessions = [
-      for (final m in stackMembers)
-        if (!m.isArchived) m.filePath,
-    ];
-    final folders = {
-      for (final s in sessions) ScannerService.projectContainingFolder(s),
-    }.toList();
-    return (sessions: sessions, folders: folders);
-  }
-  return (
-    sessions: [project.filePath],
-    folders: [ScannerService.projectContainingFolder(project.filePath)],
-  );
-}
 
 /// Whether a file may be played by the app's own (stereo) player: two
 /// channels or fewer, and not an ADM master. Anything else would be
@@ -80,6 +53,7 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
   AudioFormatInfo? _ownFormat;
   bool _reading = false;
   String? _playingPath;
+  late final AudioIndexNotifier _index = ref.read(audioIndexProvider.notifier);
 
   @override
   void initState() {
@@ -97,7 +71,11 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
     _player.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _playingPath = null);
     });
-    if (isStandaloneAudioProject(widget.project)) _readOwnFormat();
+    if (isStandaloneAudioProject(widget.project)) {
+      _readOwnFormat();
+    } else {
+      _loadThenRefresh();
+    }
   }
 
   @override
@@ -112,25 +90,29 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
     if (mounted) setState(() => _ownFormat = format);
   }
 
-  Future<void> _read() async {
+  /// What the index already knows, at once; then a quiet incremental
+  /// refresh (only changed files are read) so the page is current.
+  Future<void> _loadThenRefresh() async {
+    final cached = await _index.cached(widget.project.id);
+    if (!mounted) return;
+    setState(() => _report = cached);
+    await _read(force: false);
+  }
+
+  Future<void> _reloadFromCache() async {
+    final cached = await _index.cached(widget.project.id);
+    if (mounted && cached != null) setState(() => _report = cached);
+  }
+
+  Future<void> _read({required bool force}) async {
+    if (_reading) return;
     setState(() => _reading = true);
-    final members = widget.project.isVirtual
-        ? [
-            for (final m in ref.read(allProjectsStreamProvider).value ?? const <MusicProject>[])
-              if (m.stackId == widget.project.id) m,
-          ]
-        : const <MusicProject>[];
-    final sources = audioSourcesFor(widget.project, stackMembers: members);
-    final report = await readAssociatedAudio(
-      sessionPaths: sources.sessions,
-      folders: sources.folders,
-    );
-    if (mounted) {
-      setState(() {
-        _report = report;
-        _reading = false;
-      });
-    }
+    final report = await _index.indexOne(widget.project, force: force);
+    if (!mounted) return;
+    setState(() {
+      if (report != null) _report = report;
+      _reading = false;
+    });
   }
 
   Future<void> _togglePlay(String path) async {
@@ -160,6 +142,11 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
 
   @override
   Widget build(BuildContext context) {
+    // The background index read this project: show what it found.
+    ref.listen(audioIndexProvider.select((s) => (s.lastIndexed, s.lastIndexedAt)),
+        (_, next) {
+      if (next.$1 == widget.project.id && !_reading) _reloadFromCache();
+    });
     final l10n = AppLocalizations.of(context)!;
     final theme = Theme.of(context);
     final project = widget.project;
@@ -236,23 +223,41 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
           const SizedBox(height: 10),
           Row(
             children: [
-              FilledButton.tonalIcon(
-                icon: _reading
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.library_music_outlined, size: 18),
-                label: Text(_reading
-                    ? l10n.audioFilesReading
-                    : report == null
-                        ? l10n.audioFilesFind
-                        : l10n.audioFilesRefresh),
-                onPressed: _reading ? null : _read,
+              if (_reading)
+                const Padding(
+                  padding: EdgeInsets.only(right: 8),
+                  child: SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                ),
+              Expanded(
+                child: Text(
+                  _reading
+                      ? (report == null
+                          ? l10n.audioFilesReadingFirst
+                          : l10n.audioFilesReading)
+                      : report?.indexedAt == null
+                          ? ''
+                          : l10n.audioIndexedAt(DateFormat.yMMMd(
+                                  Localizations.localeOf(context).toString())
+                              .add_Hm()
+                              .format(report!.indexedAt!)),
+                  style: dim,
+                ),
+              ),
+              TextButton.icon(
+                icon: const Icon(Icons.refresh, size: 18),
+                label: Text(l10n.audioFilesRefresh),
+                onPressed: _reading ? null : () => _read(force: true),
               ),
             ],
           ),
+          if (report != null && report.offlineFolders.isNotEmpty)
+            _notice(context, l10n.audioOfflineFolders),
+          if (report != null && report.cloudOnlySessions.isNotEmpty)
+            _notice(context, l10n.audioCloudOnlySessions),
           if (report != null) ...[
             const SizedBox(height: 14),
             if (report.unreadableSessions.isNotEmpty)
@@ -382,7 +387,7 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
       ],
       if (mono != null) l10n.audioMultiMono(mono.channel),
     ].join(' · ');
-    final playable = file.exists && playableInApp(format);
+    final playable = file.exists && !file.cloudOnly && playableInApp(format);
     final whyNot = format == null
         ? null
         : format.isAdm
@@ -402,7 +407,12 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
             width: 40,
             child: !file.exists
                 ? const Icon(Icons.help_outline, size: 18)
-                : playable
+                : file.cloudOnly
+                    ? StandaloneTooltip(
+                        message: l10n.audioCloudOnlyFile,
+                        child: const Icon(Icons.cloud_outlined, size: 20),
+                      )
+                    : playable
                     ? IconButton(
                         tooltip: playing ? l10n.audioStop : l10n.audioPlay,
                         icon: Icon(playing ? Icons.stop : Icons.play_arrow),
@@ -445,9 +455,11 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
                   ],
                 ),
                 Text(
-                  file.exists
-                      ? (details.isEmpty ? p.dirname(file.path) : details)
-                      : file.path,
+                  !file.exists
+                      ? file.path
+                      : file.cloudOnly
+                          ? l10n.audioCloudOnlyFile
+                          : (details.isEmpty ? p.dirname(file.path) : details),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.bodySmall,
@@ -462,7 +474,7 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
                 icon: const Icon(Icons.push_pin_outlined, size: 18),
                 onPressed: () => _useAsPreview(file.path),
               ),
-            if (!playable)
+            if (!playable && !file.cloudOnly)
               IconButton(
                 tooltip: l10n.audioOpenWithDefault,
                 icon: const Icon(Icons.open_in_new, size: 18),

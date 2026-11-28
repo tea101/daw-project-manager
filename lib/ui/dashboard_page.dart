@@ -95,6 +95,8 @@ import 'widgets/project_cover_avatar.dart';
 import '../utils/project_visuals.dart';
 import '../utils/project_file_type.dart';
 import '../services/standalone_audio_scanner.dart';
+import '../services/associated_audio/audio_index_summary.dart';
+import 'widgets/audio_index_progress.dart';
 import '../generated/l10n/app_localizations.dart';
 import 'session_actions.dart';
 import 'midi_library_page.dart';
@@ -1141,6 +1143,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage>
       }
 
       ref.invalidate(allProjectsStreamProvider);
+
+      // The audio index (v3.0.6): reads, in the background, only what
+      // changed since last time. After the list has caught up with the scan.
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) unawaited(ref.read(audioIndexProvider.notifier).runAll());
+      });
 
       if (mounted) {
         final scanType = fullMetadata
@@ -5490,6 +5498,40 @@ class _PlutoProjectsTableWithSelectionState
                       ref.read(fileTypeFilterProvider.notifier).setType(value);
                     },
                   ),
+                ],
+                // Associated audio (v3.0.6), from the audio index.
+                if (!MobileUtils.isMobile()) ...[
+                  const SizedBox(width: 4),
+                  FilterDropdown<AudioFilter>(
+                    icon: Icons.library_music_outlined,
+                    value: ref.watch(audioFilterProvider),
+                    hintText: l10n.audioFilterHint,
+                    items: [
+                      DropdownMenuItem<AudioFilter>(
+                        value: null,
+                        child: Text(l10n.audioFilterAll),
+                      ),
+                      DropdownMenuItem(
+                        value: AudioFilter.hasAudio,
+                        child: Text(l10n.audioFilterHasAudio),
+                      ),
+                      DropdownMenuItem(
+                        value: AudioFilter.hasAdm,
+                        child: Text(l10n.audioFilterHasAdm),
+                      ),
+                      DropdownMenuItem(
+                        value: AudioFilter.missingAudio,
+                        child: Text(l10n.audioFilterMissing),
+                      ),
+                      DropdownMenuItem(
+                        value: AudioFilter.notIndexed,
+                        child: Text(l10n.audioFilterNotIndexed),
+                      ),
+                    ],
+                    onChanged: (value) =>
+                        ref.read(audioFilterProvider.notifier).set(value),
+                  ),
+                  const AudioIndexProgress(),
                 ],
                 // Tag filter (#109) — only once some project has a tag.
                 if (availableTags.isNotEmpty) ...[

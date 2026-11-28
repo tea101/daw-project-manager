@@ -70,6 +70,62 @@ class AudioFormatInfo {
     return kSpeakerLayouts[mask];
   }
 
+  /// For the audio index cache (device-local). Only what is set is written.
+  Map<String, Object?> toJson() => {
+        'c': container.name,
+        if (channels != null) 'ch': channels,
+        if (sampleRate != null) 'sr': sampleRate,
+        if (bitsPerSample != null) 'b': bitsPerSample,
+        if (duration != null) 'ms': duration!.inMilliseconds,
+        if (channelMask != null) 'm': channelMask,
+        if (hasAxml) 'axml': true,
+        if (hasChna) 'chna': true,
+        if (hasDolbyMetadata) 'dbmd': true,
+        if (hasBext) 'bext': true,
+      };
+
+  /// [toJson] read back; null for anything unreadable.
+  static AudioFormatInfo? fromJson(Object? json) {
+    if (json is! Map) return null;
+    final container = AudioContainer.values
+        .where((c) => c.name == json['c'])
+        .firstOrNull;
+    if (container == null) return null;
+    int? i(String k) => json[k] is int ? json[k] as int : null;
+    final ms = i('ms');
+    return AudioFormatInfo(
+      container: container,
+      channels: i('ch'),
+      sampleRate: i('sr'),
+      bitsPerSample: i('b'),
+      duration: ms == null ? null : Duration(milliseconds: ms),
+      channelMask: i('m'),
+      hasAxml: json['axml'] == true,
+      hasChna: json['chna'] == true,
+      hasDolbyMetadata: json['dbmd'] == true,
+      hasBext: json['bext'] == true,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is AudioFormatInfo &&
+      other.container == container &&
+      other.channels == channels &&
+      other.sampleRate == sampleRate &&
+      other.bitsPerSample == bitsPerSample &&
+      other.duration == duration &&
+      other.channelMask == channelMask &&
+      other.hasAxml == hasAxml &&
+      other.hasChna == hasChna &&
+      other.hasDolbyMetadata == hasDolbyMetadata &&
+      other.hasBext == hasBext;
+
+  @override
+  int get hashCode => Object.hash(container, channels, sampleRate,
+      bitsPerSample, duration, channelMask, hasAxml, hasChna,
+      hasDolbyMetadata, hasBext);
+
   @override
   String toString() =>
       'AudioFormatInfo(${container.name}, ch=$channels, $sampleRate Hz, '
