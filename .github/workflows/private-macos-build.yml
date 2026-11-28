@@ -8,7 +8,7 @@ on:
     branches: [ 'build/v3.0.6-macos-private' ]
 
 env:
-  SOURCE_SHA: 59b9e7349c0ef8eb5b68d3dd0553e48162ab8e04
+  SOURCE_SHA: 7ae745e698f58cd7af26838b428f596d937bcd39
 
 jobs:
   build:
