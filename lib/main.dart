@@ -691,6 +691,14 @@ Future<int> _runInitialScan(
     // 3. Mark initial scan as complete
     container.read(initialScanStateProvider.notifier).complete();
 
+    // Automatic previews today's rules would never pick (v3.0.6):
+    // multichannel/ADM, stems, session clips, another session's file in a
+    // shared bounce folder. Cleared on launch, not only on a manual rescan;
+    // a preview the user chose is never touched. Best-effort.
+    try {
+      await repo.repairPreviewReferences();
+    } catch (_) {}
+
     // The audio index (v3.0.6), in the background: only what changed since
     // the last run is read.
     Future.delayed(const Duration(seconds: 3), () {

@@ -29,6 +29,8 @@
           "Pro Tools: Quick Look for .ptx sessions (PT Peek's preview) on a Mac with Neyrinck PT Peek installed.",
           "A session that keeps its audio outside its own folder now says so, and you can add the folders where its audio lives to a project's search; their files are listed under their own heading, never mixed with the project folder's.",
           "With projects selected, the action bar's buttons scroll sideways when the window is too narrow for them, instead of being cut off.",
+          "Multichannel and immersive audio is never played as silence or downmixed: the Music Player and the Audio files page open it in UTUVO Player Pro, or in Dolby Atmos Renderer for Dolby Atmos ADM masters (your choice in Settings), or let you drag the file into the player.",
+          "Automatic previews: never a multichannel or ADM file, and in a bounce folder shared by several sessions only a file named after the session. Stereo masters and mixes the audio index finds now give previews to projects that had none. Previews you chose are never changed.",
           "Preview songs: a song you chose is never replaced. Automatic choice never picks stems, a session's own clips, ADM masters or multichannel files.",
           "Optional: show standalone audio files (masters and mixes in folders without a DAW session) as rows. Off by default; turning it off hides them and never deletes anything."
         ]

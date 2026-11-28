@@ -28,6 +28,7 @@ import '../services/deadline_notification_service.dart';
 import '../services/project_move_service.dart' show repathProject;
 import '../utils/project_file_type.dart';
 import '../utils/app_paths.dart';
+import '../utils/audio_format_info.dart';
 import '../utils/path_rebase.dart';
 
 import '../utils/version_stacks.dart';
@@ -1601,6 +1602,47 @@ class ProjectRepository {
     );
   }
 
+  /// The folder a session file sits in, as a key for [sessionsPerFolder].
+  static String sessionFolderKey(String sessionPath) {
+    final folder = p.normalize(p.dirname(sessionPath));
+    return Platform.isMacOS || Platform.isWindows
+        ? folder.toLowerCase()
+        : folder;
+  }
+
+  /// How many sessions (not stacks, archived rows or standalone audio) sit
+  /// directly in each folder, from the catalogue alone — no disk read. A
+  /// folder with more than one shares its bounce folder between them, so an
+  /// automatic preview there must be named after its session (v3.0.6).
+  Map<String, int> sessionsPerFolder() {
+    final counts = <String, int>{};
+    for (final project in projectsBox.values) {
+      if (project.isVirtual ||
+          project.isArchived ||
+          isStandaloneAudioProject(project)) {
+        continue;
+      }
+      final key = sessionFolderKey(project.filePath);
+      counts[key] = (counts[key] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  /// Sets [projectId]'s **automatic** preview to [path], only when the
+  /// project, as stored now, has no preview at all — never over a choice the
+  /// user made, nor over an automatic one already there. Returns whether it
+  /// was set.
+  Future<bool> setAutoPreviewIfNone(String projectId, String path) async {
+    final current = projectsBox.get(projectId);
+    if (current == null) return false;
+    if ((current.previewSongPath ?? '').isNotEmpty ||
+        (current.previewSongAutoPath ?? '').isNotEmpty) {
+      return false;
+    }
+    await updateProject(current.copyWith(previewSongAutoPath: path));
+    return true;
+  }
+
   /// Sets [projectId]'s preview song to [path], as the user's own choice,
   /// onto the project **as stored now**: a page holding an older copy can
   /// set the preview without undoing anything changed since (a tag, the
@@ -1642,10 +1684,14 @@ class ProjectRepository {
     void Function(MusicProject before, MusicProject after)? onPlanned,
   }) async {
     var changed = 0;
+    final perFolder = sessionsPerFolder();
     for (final project in getAllProjects()) {
       final repaired = PreviewReferenceRepair.repair(
         project,
         userMixdownFolders: userMixdownFoldersFor(project.dawType),
+        sharedSessionFolder:
+            (perFolder[sessionFolderKey(project.filePath)] ?? 0) > 1,
+        readFormat: readAudioFormatSync,
       );
       if (repaired == null) continue;
       changed++;

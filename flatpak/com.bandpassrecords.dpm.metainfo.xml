@@ -70,6 +70,8 @@
           <li>Audio filters: with audio, with an ADM master, missing audio</li>
           <li>Stereo, multichannel and Dolby Atmos ADM BWF told apart from their headers</li>
           <li>Quick Look for Pro Tools sessions on macOS (with Neyrinck PT Peek)</li>
+          <li>Multichannel and immersive audio opens in an external player (macOS), never downmixed or played as silence</li>
+          <li>Better automatic previews: no multichannel files, no other session's bounce in a shared folder</li>
           <li>Optional standalone audio files in the project list</li>
         </ul>
       </description>

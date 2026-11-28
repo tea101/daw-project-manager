@@ -121,6 +121,9 @@ import '../models/dashboard_view_mode.dart';
 import '../models/scan_root.dart';
 import '../models/todo_item.dart';
 import '../providers/providers.dart';
+import '../services/external_player.dart';
+import '../utils/audio_format_info.dart';
+import 'external_playback.dart';
 import '../repository/project_repository.dart';
 import '../services/google_drive_sync_service.dart' show GoogleDriveSyncService;
 import '../utils/playback_todo_utils.dart';
@@ -9493,6 +9496,16 @@ class _PreviewSongDialogState extends ConsumerState<_PreviewSongDialog> {
       return;
     }
 
+    // Multichannel or ADM: handed to the external player, never played here
+    // as a downmix or as silence (v3.0.6).
+    final format = await readAudioFormat(_effectivePreviewPath!);
+    if (needsExternalPlayer(format)) {
+      if (mounted) {
+        await openInExternalPlayer(context, ref, _effectivePreviewPath!, format);
+      }
+      return;
+    }
+
     try {
       await _audioPlayer.play(_currentSource(), volume: _volume);
     } catch (_) {
@@ -9554,6 +9567,16 @@ class _PreviewSongDialogState extends ConsumerState<_PreviewSongDialog> {
       if (_isPlaying) {
         await _audioPlayer.pause();
       } else {
+        // Multichannel or ADM: handed to the external player, never played
+        // here as a downmix or as silence (v3.0.6).
+        final format = await readAudioFormat(_effectivePreviewPath!);
+        if (needsExternalPlayer(format)) {
+          if (mounted) {
+            await openInExternalPlayer(
+                context, ref, _effectivePreviewPath!, format);
+          }
+          return;
+        }
         if (_position == Duration.zero || _position >= _duration) {
           await _audioPlayer.play(DeviceFileSource(_effectivePreviewPath!), volume: _volume);
         } else {
@@ -10254,6 +10277,10 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
   AudioFileInfo? _fileInfo;
   bool _fileInfoLoading = true;
   WaveformPeaks? _peaks;
+  // Set when the track is multichannel or ADM (v3.0.6): the bar is a stereo
+  // player, so it neither plays nor downmixes it — it offers the user's
+  // external player instead of playing silence.
+  AudioFormatInfo? _externalOnly;
   // The saved height from the first frame — see PlayerBarHeightStore.
   double _barHeight = PlayerBarHeightStore.current;
   final FocusNode _focusNode = FocusNode();
@@ -10394,6 +10421,14 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
   /// place of the raw platform error.
   Future<void> _playRequest() async {
     final request = widget.request;
+    // Multichannel or ADM: never played here (a stereo player would downmix
+    // it, or sound like nothing) — see _externalOnly.
+    final format = await readAudioFormat(request.resolvedPath);
+    if (!mounted || widget.request.generation != request.generation) return;
+    if (needsExternalPlayer(format)) {
+      setState(() => _externalOnly = format);
+      return;
+    }
     try {
       await _player.play(
         DeviceFileSource(request.resolvedPath),
@@ -10445,6 +10480,7 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
         _monoFilePath = null;
         _fileInfo = null;
         _peaks = null;
+        _externalOnly = null;
       });
       _playRequest();
       _loadBackgroundData();
@@ -10574,6 +10610,8 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
   }
 
   Future<void> _togglePlayPause() async {
+    // A multichannel or ADM track isn't played here: play goes nowhere.
+    if (_externalOnly != null) return;
     try {
       if (_isPlaying) {
         await _player.pause();
@@ -11116,6 +11154,19 @@ class _DesktopPlayerBarState extends ConsumerState<_DesktopPlayerBar> {
                   ),
                 ),
                 // ── Row 2: waveform (full width) ──────────────────────────────
+                // …or, for a multichannel/ADM track, why it isn't played
+                // here and the way to hear it.
+                if (_externalOnly != null)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
+                      child: _ExternalOnlyNotice(
+                        path: widget.request.resolvedPath,
+                        format: _externalOnly!,
+                      ),
+                    ),
+                  )
+                else
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(10, 2, 10, 8),
@@ -13621,4 +13672,49 @@ class _PendingFolderRow extends ConsumerWidget {
   }
 }
 
+/// The player bar's message for a multichannel or ADM track (v3.0.6): what
+/// the file is, that the bar is stereo and never downmixes, and the user's
+/// external player — a button, and the file to drag into it.
+class _ExternalOnlyNotice extends ConsumerWidget {
+  const _ExternalOnlyNotice({required this.path, required this.format});
 
+  final String path;
+  final AudioFormatInfo format;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final summary = audioFormatSummary(format);
+    final shown = externalPlayerShownFor(
+      format,
+      installed: ref.watch(installedExternalPlayersProvider).value ?? const {},
+      preference: ref.watch(externalPlayerPreferenceProvider),
+    );
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(Icons.surround_sound_outlined, color: theme.colorScheme.tertiary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            l10n.externalPlayerBarNotice(
+                summary.isEmpty ? l10n.externalPlayerMultichannel : summary),
+            style: theme.textTheme.bodySmall,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: 10),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.headphones_outlined, size: 18),
+          label: Text(shown == null
+              ? l10n.externalPlayerOpenInPlayer
+              : l10n.externalPlayerOpenIn(shown.displayName)),
+          onPressed: () => openInExternalPlayer(context, ref, path, format),
+        ),
+        ExternalPlayerDragHandle(path: path),
+      ],
+    );
+  }
+}

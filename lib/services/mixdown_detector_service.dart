@@ -4,6 +4,7 @@ import '../models/music_project.dart';
 import '../utils/audio_format_info.dart';
 import '../utils/mobile_utils.dart';
 import 'associated_audio/audio_roles.dart';
+import 'auto_preview_rules.dart';
 
 /// Locates the most recently modified audio file in a project's mixdown/bounce
 /// folder, for use as a fallback preview when no song has been set manually.
@@ -152,6 +153,9 @@ class MixdownDetectorService {
   }) {
     if (MobileUtils.isMobile()) return null;
     if (project.filePath.isEmpty) return null;
+    // A folder holding several sessions shares its bounce folder between
+    // them: there, only a file named after this session will do (v3.0.6).
+    final shared = sessionFolderIsShared(project.filePath);
 
     for (final dir in _candidateDirs(
       project,
@@ -177,13 +181,40 @@ class MixdownDetectorService {
       final projectDir = File(project.filePath).parent.path;
       for (final file in files) {
         if (mayAutoSelect(file.path,
-            projectFolder: projectDir, userListedFolder: userListed)) {
+                projectFolder: projectDir, userListedFolder: userListed) &&
+            autoPreviewFitsSession(file.path, project.filePath,
+                sharedFolder: shared)) {
           return file;
         }
       }
     }
 
     return null;
+  }
+
+  /// Whether the folder [sessionPath] sits in holds other sessions of the
+  /// same kind (same extension; AppleDouble companions don't count), so
+  /// its bounce folder is shared. False when the folder can't be read.
+  /// Overridable in tests.
+  static bool Function(String sessionPath) sessionFolderIsShared =
+      _sessionFolderIsShared;
+
+  static bool _sessionFolderIsShared(String sessionPath) {
+    final ext = p.extension(sessionPath).toLowerCase();
+    if (ext.isEmpty) return false;
+    try {
+      var count = 0;
+      for (final entity in Directory(p.dirname(sessionPath)).listSync()) {
+        if (entity is! File) continue;
+        final name = p.basename(entity.path);
+        if (name.startsWith('._') || name.startsWith('.')) continue;
+        if (p.extension(name).toLowerCase() != ext) continue;
+        if (++count > 1) return true;
+      }
+    } on FileSystemException {
+      return false;
+    }
+    return false;
   }
 
   /// Reads a candidate's header; overridable in tests.

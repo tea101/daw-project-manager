@@ -18,7 +18,8 @@ bool ptPeekHandles(String path) =>
 
 /// macOS file integration through the app's own native code
 /// (`FileIntegrationBridge` in macos/Runner/MainFlutterWindow.swift):
-/// Quick Look in the system's own panel, and whether an app is installed.
+/// Quick Look in the system's own panel, whether an app is installed, and
+/// handing a file to a named app (external players, v3.0.6).
 /// Every call answers false/null off macOS and never throws.
 class MacFileIntegration {
   MacFileIntegration._();
@@ -34,6 +35,21 @@ class MacFileIntegration {
     try {
       return await _channel.invokeMethod<bool>(
               'appInstalled', {'bundleId': bundleId}) ??
+          false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Asks macOS to open [path] in the app with [bundleId] — what Finder's
+  /// Open With does. False when the app isn't installed or macOS refused;
+  /// true says only that macOS handed the file over (whether the app then
+  /// loads it is up to the app). Nothing is changed in the file.
+  static Future<bool> openWith(String bundleId, String path) async {
+    if (!supported) return false;
+    try {
+      return await _channel.invokeMethod<bool>(
+              'openWith', {'bundleId': bundleId, 'path': path}) ??
           false;
     } catch (_) {
       return false;

@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:path/path.dart' as p;
 
 import '../models/music_project.dart';
+import '../utils/audio_format_info.dart';
+import '../utils/cloud_file.dart';
+import 'auto_preview_rules.dart';
 import 'mixdown_detector_service.dart';
 
 /// Repairs preview-song references that automatic detection should never
@@ -36,12 +39,24 @@ class PreviewReferenceRepair {
   ///   themselves ([userMixdownFolders]).
   /// - Remembered "Keep Current" answer (`ignoredNewerSongPath`) on an
   ///   AppleDouble file: cleared.
+  /// - Auto-detected preview that today's rules would never pick (v3.0.6,
+  ///   [autoPreviewProblem]): multichannel or ADM by its header, a stem by
+  ///   its name or folder, or — when the session shares its
+  ///   folder with other sessions ([sharedSessionFolder]) — a file not named
+  ///   after this session. Cleared, so the project gets a fitting one or
+  ///   none. The manual preview is never judged by these rules.
   ///
   /// [fileExists] is injectable for tests; it defaults to a disk check.
+  /// [readFormat] reads an audio header (a few small reads); null skips the
+  /// header rules. It is only called for a file that is here and not with a
+  /// cloud provider ([isCloudOnly]), so nothing is downloaded.
   static MusicProject? repair(
     MusicProject project, {
     bool Function(String path)? fileExists,
     Iterable<String> userMixdownFolders = const [],
+    bool sharedSessionFolder = false,
+    AudioFormatInfo? Function(String path)? readFormat,
+    bool Function(String path) isCloudOnly = isCloudOnlyFile,
   }) {
     final exists = fileExists ?? (String path) => File(path).existsSync();
 
@@ -62,9 +77,26 @@ class PreviewReferenceRepair {
         p.basename(p.dirname(path)).toLowerCase() ==
             MixdownDetectorService.proToolsAudioFilesFolder.toLowerCase();
 
+    bool brokenByTodaysRules(String? path) {
+      if (path == null || path.isEmpty || path.startsWith('drive://')) {
+        return false;
+      }
+      if (project.isVirtual) return false;
+      final format = readFormat != null && exists(path) && !isCloudOnly(path)
+          ? readFormat(path)
+          : null;
+      final problem = autoPreviewProblem(path, project.filePath,
+          sharedFolder: sharedSessionFolder, format: format);
+      // A session's own clips are judged by the Pro Tools rule above, which
+      // knows which DAW keeps them where and respects a folder the user
+      // listed; the name-only guess would overrule both.
+      return problem != null && problem != 'sessionClip';
+    }
+
     final manualBad = isAppleDouble(project.previewSongPath);
     final autoBad = isAppleDouble(project.previewSongAutoPath) ||
-        isProToolsTrack(project.previewSongAutoPath);
+        isProToolsTrack(project.previewSongAutoPath) ||
+        brokenByTodaysRules(project.previewSongAutoPath);
     final ignoredBad = isAppleDouble(project.ignoredNewerSongPath);
     if (!manualBad && !autoBad && !ignoredBad) return null;
 

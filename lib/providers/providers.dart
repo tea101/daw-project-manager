@@ -27,6 +27,8 @@ import '../utils/todo_due_utils.dart';
 import '../utils/project_visuals.dart';
 import '../utils/library_projects.dart';
 import '../utils/project_file_type.dart';
+import '../services/auto_preview_rules.dart';
+import '../services/external_player.dart';
 import '../services/macos_file_integration.dart';
 import '../services/associated_audio/associated_audio_service.dart';
 import '../services/associated_audio/audio_index_jobs.dart';
@@ -2507,11 +2509,57 @@ class StandaloneAudioEnabledNotifier extends Notifier<bool> {
   }
 }
 
-/// Whether Neyrinck PT Peek is installed (macOS only), for "Open in PT
-/// Peek" and Quick Look on Pro Tools sessions. Asked of Launch Services
-/// once per run; PT Peek itself is never touched.
+/// Whether Neyrinck PT Peek is installed (macOS only), for Quick Look on
+/// Pro Tools sessions (PT Peek's preview). Asked of Launch Services once per
+/// run; PT Peek itself is never touched.
 final ptPeekInstalledProvider = FutureProvider<bool>(
   (ref) => MacFileIntegration.appInstalled(kPtPeekBundleId),
+);
+
+/// The external players for multichannel and immersive audio installed on
+/// this Mac (v3.0.6), asked of Launch Services once per run.
+final installedExternalPlayersProvider =
+    FutureProvider<Set<ExternalPlayer>>((ref) async {
+  return {
+    for (final player in ExternalPlayer.values)
+      if (await MacFileIntegration.appInstalled(player.bundleId)) player,
+  };
+});
+
+/// Which external player multichannel and immersive audio opens in
+/// (Settings > Audio files). Device-local (`settings` box): it names apps on
+/// this Mac. UTUVO Player Pro by default.
+class ExternalPlayerPreferenceNotifier
+    extends Notifier<ExternalPlayerPreference> {
+  static const _key = 'externalPlayer';
+
+  @override
+  ExternalPlayerPreference build() {
+    try {
+      return ExternalPlayerPreference.byName(
+          Hive.box<String>('settings').get(_key));
+    } catch (_) {
+      return ExternalPlayerPreference.utuvoPlayerPro;
+    }
+  }
+
+  Future<void> set(ExternalPlayerPreference value) async {
+    if (value == state) return;
+    state = value;
+    try {
+      final box = Hive.isBoxOpen('settings')
+          ? Hive.box<String>('settings')
+          : await Hive.openBox<String>('settings');
+      await box.put(_key, value.name);
+    } catch (e) {
+      if (kDebugMode) print('Failed to save externalPlayer: $e');
+    }
+  }
+}
+
+final externalPlayerPreferenceProvider = NotifierProvider<
+    ExternalPlayerPreferenceNotifier, ExternalPlayerPreference>(
+  ExternalPlayerPreferenceNotifier.new,
 );
 
 /// The projects list's audio filter (v3.0.6); null for all. Session-only.
@@ -2656,6 +2704,7 @@ class AudioIndexNotifier extends Notifier<AudioIndexState> {
         state = state.copyWith(summaries: Map.unmodifiable(_summaries));
       }
     }
+    _sessionsPerFolder = null;
     if (!_cancel) {
       await store.retainOnly({for (final p in all) p.id});
       _summaries.removeWhere((id, _) => !all.any((p) => p.id == id));
@@ -2666,6 +2715,41 @@ class AudioIndexNotifier extends Notifier<AudioIndexState> {
       summaries: Map.unmodifiable(_summaries),
     );
   }
+
+  /// A project with no preview at all gets an automatic stereo one from the
+  /// audio just found ([bestStereoPreviewFrom], v3.0.6): never over a
+  /// preview the user chose or an automatic one already there, never a
+  /// stem, session clip, ADM or multichannel file, and in a folder shared by
+  /// several sessions only a file named after this one. Best-effort.
+  Future<void> _fillAutoPreview(
+      String projectId, AssociatedAudioReport report) async {
+    try {
+      final repo = await ref.read(repositoryProvider.future);
+      final project = repo.getById(projectId);
+      if (project == null ||
+          project.isVirtual ||
+          project.isArchived ||
+          isStandaloneAudioProject(project) ||
+          (project.previewSongPath ?? '').isNotEmpty ||
+          (project.previewSongAutoPath ?? '').isNotEmpty) {
+        return;
+      }
+      final perFolder = _sessionsPerFolder ??= repo.sessionsPerFolder();
+      final shared = (perFolder[
+                  ProjectRepository.sessionFolderKey(project.filePath)] ??
+              0) >
+          1;
+      final best = bestStereoPreviewFrom(report,
+          sessionPath: project.filePath, sharedFolder: shared);
+      if (best == null) return;
+      await repo.setAutoPreviewIfNone(projectId, best.path);
+    } catch (_) {
+      // Best-effort: a preview is a convenience, never worth a failed read.
+    }
+  }
+
+  /// Sessions per folder for the pass in hand; dropped when a pass ends.
+  Map<String, int>? _sessionsPerFolder;
 
   /// The folders the user added to [projectId]'s audio search.
   Future<List<String>> addedFolders(String projectId) async =>
@@ -2705,6 +2789,7 @@ class AudioIndexNotifier extends Notifier<AudioIndexState> {
       ),
       force: force,
     );
+    _sessionsPerFolder = null;
     state = state.copyWith(summaries: Map.unmodifiable(_summaries));
     return report;
   }
@@ -2724,6 +2809,7 @@ class AudioIndexNotifier extends Notifier<AudioIndexState> {
       ).timeout(kAudioIndexProjectTimeout);
       await store.put(job.projectId, report);
       _summaries[job.projectId] = AudioIndexSummary.of(report);
+      await _fillAutoPreview(job.projectId, report);
       state = state.copyWith(
         lastIndexed: job.projectId,
         lastIndexedAt: DateTime.now(),

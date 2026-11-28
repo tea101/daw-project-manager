@@ -19,6 +19,7 @@ import '../models/scan_root.dart';
 import '../models/ignored_path.dart';
 import '../models/profile.dart';
 import 'dialogs/auto_stack_confirm_dialog.dart';
+import '../services/external_player.dart';
 import '../providers/providers.dart';
 import '../providers/theme_provider.dart';
 import '../repository/project_repository.dart';
@@ -4343,6 +4344,71 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   ),
                 ],
               ),
+            ),
+          ),
+        ],
+        // External player for multichannel and immersive audio (v3.0.6):
+        // macOS only — it names apps on this Mac.
+        if (Platform.isMacOS) ...[
+          const SizedBox(height: 12),
+          Card(
+            clipBehavior: Clip.antiAlias,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Consumer(builder: (context, ref, _) {
+                final installed =
+                    ref.watch(installedExternalPlayersProvider).value ??
+                        const <ExternalPlayer>{};
+                final preference = ref.watch(externalPlayerPreferenceProvider);
+                String label(ExternalPlayer player) =>
+                    installed.contains(player)
+                        ? player.displayName
+                        : l10n.externalPlayerNotInstalled(player.displayName);
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.surround_sound_outlined),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(l10n.externalPlayerSettingTitle,
+                              style: Theme.of(context).textTheme.titleMedium),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(l10n.externalPlayerSettingHelp,
+                        style: Theme.of(context).textTheme.bodySmall),
+                    const SizedBox(height: 8),
+                    RadioGroup<ExternalPlayerPreference>(
+                      groupValue: preference,
+                      onChanged: (v) {
+                        if (v != null) {
+                          ref
+                              .read(externalPlayerPreferenceProvider.notifier)
+                              .set(v);
+                        }
+                      },
+                      child: Column(
+                        children: [
+                          for (final option in ExternalPlayerPreference.values)
+                            RadioListTile<ExternalPlayerPreference>(
+                              value: option,
+                              title: Text(switch (option) {
+                                ExternalPlayerPreference.ask =>
+                                  l10n.externalPlayerAsk,
+                                _ => label(option.player!),
+                              }),
+                              contentPadding: EdgeInsets.zero,
+                              dense: true,
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              }),
             ),
           ),
         ],

@@ -24,6 +24,8 @@ import '../../utils/file_launcher.dart';
 import '../../utils/project_file_type.dart';
 import '../../utils/track_duration.dart';
 import '../app_snack_bar.dart';
+import '../external_playback.dart';
+import '../../services/external_player.dart';
 import 'semantics_safe.dart';
 
 /// Whether a file may be played by the app's own (stereo) player: two
@@ -561,7 +563,29 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
                 icon: const Icon(Icons.push_pin_outlined, size: 18),
                 onPressed: () => _useAsPreview(file.path),
               ),
-            if (!playable && !file.cloudOnly)
+            // Multichannel and ADM files: never downmixed, never played as
+            // silence — they go to the user's external player (or are
+            // dragged into one).
+            if (!playable && !file.cloudOnly && needsExternalPlayer(format)) ...[
+              Builder(builder: (context) {
+                final shown = externalPlayerShownFor(
+                  format,
+                  installed:
+                      ref.watch(installedExternalPlayersProvider).value ??
+                          const {},
+                  preference: ref.watch(externalPlayerPreferenceProvider),
+                );
+                return IconButton(
+                  tooltip: shown == null
+                      ? l10n.externalPlayerOpenInPlayer
+                      : l10n.externalPlayerOpenIn(shown.displayName),
+                  icon: const Icon(Icons.headphones_outlined, size: 18),
+                  onPressed: () =>
+                      openInExternalPlayer(context, ref, file.path, format),
+                );
+              }),
+              ExternalPlayerDragHandle(path: file.path),
+            ] else if (!playable && !file.cloudOnly)
               IconButton(
                 tooltip: l10n.audioOpenWithDefault,
                 icon: const Icon(Icons.open_in_new, size: 18),

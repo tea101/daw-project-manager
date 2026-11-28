@@ -53,6 +53,52 @@ void main() {
     });
   });
 
+  group('Automatic previews from the audio index', () {
+    test('set only when the project has no preview at all', () async {
+      await repo.projectsBox.put('none', TestFactories.makeProject(
+          id: 'none', filePath: '/v/A/A.ptx'));
+      await repo.projectsBox.put('manual', TestFactories.makeProject(
+          id: 'manual',
+          filePath: '/v/B/B.ptx',
+          previewSongPath: '/v/B/Mine.wav',
+          previewSongFileName: 'Mine.wav'));
+      await repo.projectsBox.put('auto', TestFactories.makeProject(
+          id: 'auto',
+          filePath: '/v/C/C.ptx',
+          previewSongAutoPath: '/v/C/Bounces/C.wav'));
+
+      expect(await repo.setAutoPreviewIfNone('none', '/v/A/A Master.wav'),
+          isTrue);
+      expect(repo.getById('none')!.previewSongAutoPath, '/v/A/A Master.wav');
+      expect(repo.getById('none')!.previewSongPath, isNull);
+
+      // The user's choice is never overwritten, nor an automatic one.
+      expect(await repo.setAutoPreviewIfNone('manual', '/v/B/B Master.wav'),
+          isFalse);
+      expect(repo.getById('manual')!.previewSongPath, '/v/B/Mine.wav');
+      expect(repo.getById('manual')!.previewSongAutoPath, isNull);
+      expect(await repo.setAutoPreviewIfNone('auto', '/v/C/C Master.wav'),
+          isFalse);
+      expect(repo.getById('auto')!.previewSongAutoPath, '/v/C/Bounces/C.wav');
+    });
+
+    test('sessions are counted per folder; stacks do not count', () async {
+      await repo.projectsBox.put('1', TestFactories.makeProject(
+          id: '1', filePath: '/v/Miles/Track 6.ptx'));
+      await repo.projectsBox.put('2', TestFactories.makeProject(
+          id: '2', filePath: '/v/Miles/Track 7.ptx'));
+      await repo.projectsBox.put('3', TestFactories.makeProject(
+          id: '3', filePath: '/v/Solo/Solo.ptx'));
+      await repo.projectsBox.put('s', TestFactories.makeProject(
+          id: 's', filePath: '/v/Solo/Stack', isVirtual: true));
+      final counts = repo.sessionsPerFolder();
+      expect(counts[ProjectRepository.sessionFolderKey('/v/Miles/Track 6.ptx')],
+          2);
+      expect(counts[ProjectRepository.sessionFolderKey('/v/Solo/Solo.ptx')],
+          1);
+    });
+  });
+
   group('Added audio folders (device-local store)', () {
     test('kept per project, in order, each once', () async {
       final store = AudioIndexStore(repo.profileId);
