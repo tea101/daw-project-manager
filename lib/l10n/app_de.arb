@@ -4844,7 +4844,7 @@
   "quickLookSession": "Übersicht (Quick Look)",
   "ptPeekOpenFailed": "PT Peek konnte diese Session nicht öffnen.",
   "audioFilesSection": "Audiodateien",
-  "audioFilesExplanation": "Die Audiodateien dieses Projekts: von der Session selbst bestätigt oder in ihrem Ordner gefunden. Wird nur auf Anfrage gelesen; nichts wird verändert.",
+  "audioFilesExplanation": "Die Audiodateien dieses Projekts: von der Session selbst bestätigt oder in ihrem Ordner gefunden. Nach jedem Scan automatisch gelesen (nur Geändertes); deine Dateien werden nie verändert.",
   "audioStackFolders": "Versionsstapel mit {count} Versionen – kein Ordner auf der Festplatte. Ihre Ordner:",
   "audioProjectFolder": "Projektordner",
   "audioSession": "Session",

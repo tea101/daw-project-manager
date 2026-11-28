@@ -10102,7 +10102,7 @@
   "@ptPeekOpenFailed": {},
   "audioFilesSection": "Audio files",
   "@audioFilesSection": {},
-  "audioFilesExplanation": "The audio files that belong to this project: confirmed by the session itself, or found in its folder. Read only when you ask; nothing is changed.",
+  "audioFilesExplanation": "The audio files that belong to this project: confirmed by the session itself, or found in its folder. Read automatically after each scan (only what changed); your files are never changed.",
   "@audioFilesExplanation": {},
   "audioStackFolders": "Version stack of {count} versions — not a folder on disk. Their folders:",
   "@audioStackFolders": {"placeholders": {"count": {"type": "int"}}},

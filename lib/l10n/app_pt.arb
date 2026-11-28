@@ -4868,7 +4868,7 @@
   "quickLookSession": "Visualização rápida",
   "ptPeekOpenFailed": "O PT Peek não conseguiu abrir esta sessão.",
   "audioFilesSection": "Arquivos de áudio",
-  "audioFilesExplanation": "Os arquivos de áudio deste projeto: confirmados pela própria sessão ou encontrados na pasta dela. Lidos só quando você pede; nada é alterado.",
+  "audioFilesExplanation": "Os arquivos de áudio deste projeto: confirmados pela própria sessão ou encontrados na pasta dela. Lidos automaticamente após cada varredura (só o que mudou); seus arquivos nunca são alterados.",
   "audioStackFolders": "Pilha de {count} versões, não uma pasta no disco. As pastas delas:",
   "audioProjectFolder": "Pasta do projeto",
   "audioSession": "Sessão",

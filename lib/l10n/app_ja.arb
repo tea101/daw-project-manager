@@ -4844,7 +4844,7 @@
   "quickLookSession": "クイックルック",
   "ptPeekOpenFailed": "PT Peek でこのセッションを開けませんでした。",
   "audioFilesSection": "オーディオファイル",
-  "audioFilesExplanation": "このプロジェクトのオーディオファイル：セッション自体で確認されたもの、またはフォルダ内で見つかったもの。要求したときだけ読み取り、何も変更しません。",
+  "audioFilesExplanation": "このプロジェクトのオーディオファイル：セッション自体で確認されたもの、またはフォルダ内で見つかったもの。スキャンのたびに自動で読み取ります（変更分のみ）。ファイルが変更されることはありません。",
   "audioStackFolders": "{count} 個のバージョンのスタック（ディスク上のフォルダではありません）。各フォルダ：",
   "audioProjectFolder": "プロジェクトフォルダ",
   "audioSession": "セッション",

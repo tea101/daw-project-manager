@@ -4844,7 +4844,7 @@
   "quickLookSession": "快速查看",
   "ptPeekOpenFailed": "PT Peek 无法打开此会话。",
   "audioFilesSection": "音频文件",
-  "audioFilesExplanation": "属于此项目的音频文件：由会话本身确认，或在其文件夹中找到。仅在你请求时读取，不做任何更改。",
+  "audioFilesExplanation": "属于此项目的音频文件：由会话本身确认，或在其文件夹中找到。每次扫描后自动读取（仅读取有变化的部分）；你的文件绝不会被更改。",
   "audioStackFolders": "包含 {count} 个版本的版本堆栈（不是磁盘上的文件夹）。它们的文件夹：",
   "audioProjectFolder": "项目文件夹",
   "audioSession": "会话",
