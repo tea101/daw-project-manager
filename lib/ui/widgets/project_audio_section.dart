@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:audioplayers/audioplayers.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:intl/intl.dart';
@@ -50,6 +51,7 @@ class ProjectAudioSection extends ConsumerStatefulWidget {
 class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
   final AudioPlayer _player = newSongPlayer();
   AssociatedAudioReport? _report;
+  List<String> _addedFolders = const [];
   AudioFormatInfo? _ownFormat;
   bool _reading = false;
   String? _playingPath;
@@ -94,9 +96,35 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
   /// refresh (only changed files are read) so the page is current.
   Future<void> _loadThenRefresh() async {
     final cached = await _index.cached(widget.project.id);
+    final added = await _index.addedFolders(widget.project.id);
     if (!mounted) return;
-    setState(() => _report = cached);
+    setState(() {
+      _report = cached;
+      _addedFolders = added;
+    });
     await _read(force: false);
+  }
+
+  Future<void> _setAddedFolders(List<String> folders) async {
+    setState(() {
+      _addedFolders = folders;
+      _reading = true;
+    });
+    final report = await _index.setAddedFolders(widget.project, folders);
+    if (!mounted) return;
+    setState(() {
+      if (report != null) _report = report;
+      _reading = false;
+    });
+  }
+
+  Future<void> _addFolder() async {
+    final l10n = AppLocalizations.of(context)!;
+    final picked = await FilePicker.getDirectoryPath(
+      dialogTitle: l10n.audioAddFolderDialogTitle,
+    );
+    if (picked == null || !mounted || _addedFolders.contains(picked)) return;
+    await _setAddedFolders([..._addedFolders, picked]);
   }
 
   Future<void> _reloadFromCache() async {
@@ -131,11 +159,10 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
     final l10n = AppLocalizations.of(context)!;
     final messenger = ScaffoldMessenger.of(context);
     final repo = await ref.read(repositoryProvider.future);
-    // A manual choice: it stays until the user changes it.
-    await repo.updateProject(widget.project.copyWith(
-      previewSongPath: path,
-      previewSongFileName: p.basename(path),
-    ));
+    // A manual choice: it stays until the user changes it. Saved onto the
+    // project as stored now, never the copy this page opened with — that
+    // copy would undo any edit made since (a tag, the phase, notes).
+    await repo.setPreviewSong(widget.project.id, path);
     ref.invalidate(allProjectsStreamProvider);
     messenger.showAppSnackBar(SnackBar(content: Text(l10n.audioPreviewSet)));
   }
@@ -260,7 +287,14 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
             _notice(context, l10n.audioCloudOnlySessions),
           if (report != null) ...[
             const SizedBox(height: 14),
-            if (report.unreadableSessions.isNotEmpty)
+            if (sessionAudioLivesElsewhere(report))
+              _notice(
+                context,
+                report.unreadableSessions.any(ptPeekHandles) && ptPeek
+                    ? '${l10n.audioNoAudioInSessionFolder} ${l10n.audioNoAudioInSessionFolderPtPeek}'
+                    : '${l10n.audioNoAudioInSessionFolder} ${l10n.audioNoAudioInSessionFolderAdd}',
+              )
+            else if (report.unreadableSessions.isNotEmpty)
               _notice(
                 context,
                 report.unreadableSessions.any(ptPeekHandles) && ptPeek
@@ -284,18 +318,75 @@ class _ProjectAudioSectionState extends ConsumerState<ProjectAudioSection> {
               const SizedBox(height: 12),
             ],
             _groupTitle(context, Icons.folder_outlined,
-                l10n.audioDiscoveredTitle(report.discovered.length)),
-            if (report.discovered.isEmpty)
+                l10n.audioDiscoveredTitle(report.inProjectFolders.length)),
+            if (report.inProjectFolders.isEmpty)
               Text(l10n.audioNoneDiscovered, style: dim),
-            for (final f in report.discovered) _row(context, f),
+            for (final f in report.inProjectFolders) _row(context, f),
+            // Folders the user added: their own heading, their own files.
+            if (_addedFolders.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _groupTitle(context, Icons.create_new_folder_outlined,
+                  l10n.audioFoundInAddedTitle(report.inAddedFolders.length)),
+              if (report.inAddedFolders.isEmpty)
+                Text(l10n.audioNoneInAdded, style: dim),
+              for (final f in report.inAddedFolders) _row(context, f),
+            ],
             if (report.truncated)
               Padding(
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(l10n.audioTruncated(kMaxDiscoveredAudio), style: dim),
               ),
           ],
+          const SizedBox(height: 16),
+          _addedFoldersEditor(context),
         ],
       ),
+    );
+  }
+
+  /// The folders the user added to this project's search, each removable,
+  /// and the button to add one.
+  Widget _addedFoldersEditor(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final theme = Theme.of(context);
+    final dim = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.onSurface.withValues(alpha: 0.65),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(l10n.audioAddedFoldersTitle, style: theme.textTheme.titleSmall),
+        const SizedBox(height: 2),
+        Text(l10n.audioAddedFoldersExplanation, style: dim),
+        const SizedBox(height: 6),
+        for (final folder in _addedFolders)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              const Icon(Icons.folder_outlined, size: 16),
+              const SizedBox(width: 6),
+              Expanded(
+                child: SelectableText(folder, style: theme.textTheme.bodySmall),
+              ),
+              IconButton(
+                tooltip: l10n.audioRemoveAddedFolder,
+                icon: const Icon(Icons.close, size: 16),
+                onPressed: _reading
+                    ? null
+                    : () => _setAddedFolders(
+                        [for (final f in _addedFolders) if (f != folder) f]),
+              ),
+            ],
+          ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            icon: const Icon(Icons.create_new_folder_outlined, size: 18),
+            label: Text(l10n.audioAddFolder),
+            onPressed: _reading ? null : _addFolder,
+          ),
+        ),
+      ],
     );
   }
 

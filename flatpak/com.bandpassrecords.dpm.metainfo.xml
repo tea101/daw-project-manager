@@ -63,7 +63,8 @@
         <p>Customised WaveLab build (unofficial, from the tea101 fork).</p>
         <ul>
           <li>Cover art as a small square before each name in the project list</li>
-          <li>File Type column and filter (PTX, MON, WAV…); version stacks show STACK</li>
+          <li>File Type column and filter (ptx, mon, wav…); version stacks show "stack"</li>
+          <li>Folders you add to a project's audio search, for sessions that keep their audio elsewhere</li>
           <li>Audio files found automatically after each scan: confirmed by the session, or found in its folder</li>
           <li>Incremental background audio index with progress and Stop; cloud-only files never opened</li>
           <li>Audio filters: with audio, with an ADM master, missing audio</li>

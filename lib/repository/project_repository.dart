@@ -1601,6 +1601,20 @@ class ProjectRepository {
     );
   }
 
+  /// Sets [projectId]'s preview song to [path], as the user's own choice,
+  /// onto the project **as stored now**: a page holding an older copy can
+  /// set the preview without undoing anything changed since (a tag, the
+  /// phase, notes). Returns false when the project is gone.
+  Future<bool> setPreviewSong(String projectId, String path) async {
+    final current = projectsBox.get(projectId);
+    if (current == null) return false;
+    await updateProject(current.copyWith(
+      previewSongPath: path,
+      previewSongFileName: p.basename(path),
+    ));
+    return true;
+  }
+
   Future<void> updateProject(MusicProject project) async {
     final updatedProject = project.copyWith(updatedAt: DateTime.now());
     await projectsBox.put(updatedProject.id, updatedProject);

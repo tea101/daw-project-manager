@@ -5474,7 +5474,7 @@ class _PlutoProjectsTableWithSelectionState
                     },
                   ),
                 ],
-                // File type (v3.0.6): PTX, MON, WAV, STACK… — only types the
+                // File type (v3.0.6): ptx, mon, wav, stack… — only types the
                 // library has, and only once there is more than one.
                 if (availableFileTypes.length > 1 || fileTypeFilter != null) ...[
                   const SizedBox(width: 4),

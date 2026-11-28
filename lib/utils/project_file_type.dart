@@ -10,26 +10,28 @@ const Set<String> kStandaloneAudioExtensions = {
   '.flac', '.mp3', '.m4a', '.aac', '.ogg',
 };
 
-/// Short labels for extensions whose plain upper-case form isn't the one
-/// people use ("AIFF" is AIF, "WAVE" and "BWF" are WAV).
+/// Short labels for extensions whose plain form isn't the one people use
+/// ("aiff" is aif, "wave" and "bwf" are wav).
+///
+/// Labels are lowercase, as file extensions are written (ptx, mon, wav):
+/// they are display text only, and no file is ever renamed.
 const Map<String, String> _labelOverrides = {
-  '.wave': 'WAV',
-  '.bwf': 'WAV',
-  '.aiff': 'AIF',
-  '.aifc': 'AIF',
-  '.alp': 'ALP',
-  '.mmpz': 'MMP',
-  '.tracktionedit': 'TRACKTION',
-  '.bwproject': 'BWP',
-  '.maschine2': 'MASCHINE',
+  '.wave': 'wav',
+  '.bwf': 'wav',
+  '.aiff': 'aif',
+  '.aifc': 'aif',
+  '.mmpz': 'mmp',
+  '.tracktionedit': 'tracktion',
+  '.bwproject': 'bwp',
+  '.maschine2': 'maschine',
 };
 
 /// The label a version stack shows: it is a group of versions the app
 /// keeps, not a folder on disk, even though its path names one.
-const String kStackFileTypeLabel = 'STACK';
+const String kStackFileTypeLabel = 'stack';
 
 /// The label for a row whose path is a plain folder.
-const String kFolderFileTypeLabel = 'FOLDER';
+const String kFolderFileTypeLabel = 'folder';
 
 /// The File Type column's label for [project]: the actual file's type, from
 /// its path — never from the project's name.
@@ -47,7 +49,7 @@ String projectFileTypeLabel(MusicProject project) {
 String fileTypeLabelForPath(String path) {
   final ext = p.extension(path).toLowerCase();
   if (ext.isEmpty || ext == '.') return kFolderFileTypeLabel;
-  return _labelOverrides[ext] ?? ext.substring(1).toUpperCase();
+  return _labelOverrides[ext] ?? ext.substring(1);
 }
 
 /// Whether [project] is a standalone audio file in the library rather than a

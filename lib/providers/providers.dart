@@ -2450,7 +2450,7 @@ final tagsEnabledProvider = NotifierProvider<TagsEnabledNotifier, bool>(
 );
 
 /// The File Type column's filter (v3.0.6): a label from
-/// [projectFileTypeLabel] ("PTX", "MON", "WAV", "STACK"), or null for all.
+/// [projectFileTypeLabel] ("ptx", "mon", "wav", "stack"), or null for all.
 /// Session-only, like the DAW filter.
 class FileTypeFilterNotifier extends Notifier<String?> {
   @override
@@ -2636,7 +2636,11 @@ class AudioIndexNotifier extends Notifier<AudioIndexState> {
     final store = await _store();
     if (store == null) return;
     final all = ref.read(allProjectsStreamProvider).value ?? const <MusicProject>[];
-    final jobs = audioIndexJobs(ref.read(libraryProjectsProvider), all);
+    final jobs = audioIndexJobs(
+      ref.read(libraryProjectsProvider),
+      all,
+      addedFolders: await store.allAddedFolders(),
+    );
     _cancel = false;
     state = state.copyWith(running: true, done: 0, total: jobs.length);
     var sincePublish = 0;
@@ -2663,6 +2667,20 @@ class AudioIndexNotifier extends Notifier<AudioIndexState> {
     );
   }
 
+  /// The folders the user added to [projectId]'s audio search.
+  Future<List<String>> addedFolders(String projectId) async =>
+      await (await _store())?.addedFolders(projectId) ?? const [];
+
+  /// Replaces [project]'s added folders and reads its audio again, so the
+  /// page shows what they hold. Returns the new report.
+  Future<AssociatedAudioReport?> setAddedFolders(
+      MusicProject project, List<String> folders) async {
+    final store = await _store();
+    if (store == null) return null;
+    await store.setAddedFolders(project.id, folders);
+    return indexOne(project);
+  }
+
   /// Reads one project now — its page asked, or "Read again". [force]
   /// re-reads everything, ignoring what is cached.
   Future<AssociatedAudioReport?> indexOne(MusicProject project,
@@ -2683,6 +2701,7 @@ class AudioIndexNotifier extends Notifier<AudioIndexState> {
         name: project.displayName,
         sessions: sources.sessions,
         folders: sources.folders,
+        addedFolders: await store.addedFolders(project.id),
       ),
       force: force,
     );
@@ -2700,6 +2719,7 @@ class AudioIndexNotifier extends Notifier<AudioIndexState> {
       final report = await readAssociatedAudio(
         sessionPaths: job.sessions,
         folders: job.folders,
+        addedFolders: job.addedFolders,
         previous: previous,
       ).timeout(kAudioIndexProjectTimeout);
       await store.put(job.projectId, report);

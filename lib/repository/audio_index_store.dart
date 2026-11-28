@@ -13,6 +13,13 @@ import '../services/associated_audio/audio_index_summary.dart';
 /// **Device-local**: neither Drive sync nor local backup — every path in it
 /// names a place on this computer, and it is rebuilt from the files by the
 /// next scan. Losing it costs a re-read, never data.
+///
+/// Also the folders the user added to a project's audio search
+/// (`<profileId>_audio_added_folders`, project id → JSON list of paths).
+/// Device-local for the same reason: each names a place on this computer's
+/// drives. They are the user's choice, so unlike the index they are never
+/// dropped by [retainOnly] — a project restored from Recently deleted keeps
+/// them.
 class AudioIndexStore {
   AudioIndexStore(this.profileId);
 
@@ -21,6 +28,8 @@ class AudioIndexStore {
   static String reportBoxName(String profileId) => '${profileId}_audio_index';
   static String summaryBoxName(String profileId) =>
       '${profileId}_audio_index_summary';
+  static String addedFoldersBoxName(String profileId) =>
+      '${profileId}_audio_added_folders';
 
   Future<LazyBox<String>> _reports() async {
     final name = reportBoxName(profileId);
@@ -32,6 +41,55 @@ class AudioIndexStore {
     final name = summaryBoxName(profileId);
     if (Hive.isBoxOpen(name)) return Hive.box<String>(name);
     return Hive.openBox<String>(name);
+  }
+
+  Future<Box<String>> _added() async {
+    final name = addedFoldersBoxName(profileId);
+    if (Hive.isBoxOpen(name)) return Hive.box<String>(name);
+    return Hive.openBox<String>(name);
+  }
+
+  static List<String> _decodeFolders(String? raw) {
+    if (raw == null) return const [];
+    try {
+      final list = jsonDecode(raw);
+      if (list is! List) return const [];
+      return [for (final x in list) if (x is String && x.isNotEmpty) x];
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// The folders the user added to [projectId]'s audio search, in the order
+  /// they were added.
+  Future<List<String>> addedFolders(String projectId) async =>
+      _decodeFolders((await _added()).get(projectId));
+
+  /// Every project's added folders, by project id (only projects with some).
+  Future<Map<String, List<String>>> allAddedFolders() async {
+    final box = await _added();
+    return {
+      for (final key in box.keys)
+        if (key is String)
+          if (_decodeFolders(box.get(key)) case final folders
+              when folders.isNotEmpty)
+            key: folders,
+    };
+  }
+
+  /// Replaces [projectId]'s added folders. Duplicates (same path) are kept
+  /// once; an empty list removes the entry.
+  Future<void> setAddedFolders(String projectId, List<String> folders) async {
+    final box = await _added();
+    final unique = <String>[];
+    for (final f in folders) {
+      if (f.isNotEmpty && !unique.contains(f)) unique.add(f);
+    }
+    if (unique.isEmpty) {
+      await box.delete(projectId);
+    } else {
+      await box.put(projectId, jsonEncode(unique));
+    }
   }
 
   Future<AssociatedAudioReport?> get(String projectId) async {

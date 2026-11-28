@@ -9,12 +9,16 @@ class AudioIndexJob {
     required this.name,
     required this.sessions,
     required this.folders,
+    this.addedFolders = const [],
   });
 
   final String projectId;
   final String name;
   final List<String> sessions;
   final List<String> folders;
+
+  /// Folders the user added to this project's search.
+  final List<String> addedFolders;
 }
 
 /// The sessions and folders to look in for [project]'s audio.
@@ -52,8 +56,9 @@ class AudioIndexJob {
 /// audio). [all] supplies a stack's versions.
 List<AudioIndexJob> audioIndexJobs(
   List<MusicProject> library,
-  List<MusicProject> all,
-) {
+  List<MusicProject> all, {
+  Map<String, List<String>> addedFolders = const {},
+}) {
   final members = <String, List<MusicProject>>{};
   for (final p in all) {
     final stack = p.stackId;
@@ -69,6 +74,7 @@ List<AudioIndexJob> audioIndexJobs(
             name: project.displayName,
             sessions: sources.sessions,
             folders: sources.folders,
+            addedFolders: addedFolders[project.id] ?? const [],
           ),
   ];
 }

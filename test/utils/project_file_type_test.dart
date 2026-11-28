@@ -11,24 +11,31 @@ void main() {
       projectFileTypeLabel(TestFactories.makeProject(filePath: path));
 
   test('compact labels from the file', () {
-    expect(label('/p/Song/Song Mix V5.ptx'), 'PTX');
-    expect(label('/p/Song/Song Atmos Master.mon'), 'MON');
-    expect(label('/p/Song/Song.wpr'), 'WPR');
-    expect(label('/p/Song/Song.als'), 'ALS');
-    expect(label('/p/Song Master.wav'), 'WAV');
-    expect(label('/p/Song Master.WAV'), 'WAV');
-    expect(label('/p/Song Master.aiff'), 'AIF');
-    expect(label('/p/Song Master.aif'), 'AIF');
-    expect(label('/p/Song.logicx'), 'LOGICX');
-    expect(label('/p/Song.bwproject'), 'BWP');
+    expect(label('/p/Song/Song Mix V5.ptx'), 'ptx');
+    expect(label('/p/Song/Song Atmos Master.mon'), 'mon');
+    expect(label('/p/Song/Song.wpr'), 'wpr');
+    expect(label('/p/Song/Song.als'), 'als');
+    expect(label('/p/Song Master.wav'), 'wav');
+    expect(label('/p/Song Master.WAV'), 'wav');
+    expect(label('/p/Song Master.aiff'), 'aif');
+    expect(label('/p/Song Master.aif'), 'aif');
+    expect(label('/p/Song.logicx'), 'logicx');
+    expect(label('/p/Song.bwproject'), 'bwp');
     expect(label('/p/Song'), kFolderFileTypeLabel);
   });
 
-  test('the name never decides: "Song.ptx Master.wav" is WAV', () {
-    expect(label('/p/Song.ptx Master.wav'), 'WAV');
+  test('labels are lowercase, as extensions are written (display only)', () {
+    expect(label('/p/Song/SONG.PTX'), 'ptx');
+    expect(label('/p/Song Master.BWF'), 'wav');
+    expect(kStackFileTypeLabel, 'stack');
+    expect(kFolderFileTypeLabel, 'folder');
   });
 
-  test('a version stack is STACK, not FOLDER', () {
+  test('the name never decides: "Song.ptx Master.wav" is wav', () {
+    expect(label('/p/Song.ptx Master.wav'), 'wav');
+  });
+
+  test('a version stack is "stack", not "folder"', () {
     final stack =
         TestFactories.makeProject(filePath: '/p/Song', isVirtual: true);
     expect(projectFileTypeLabel(stack), kStackFileTypeLabel);

@@ -17,6 +17,11 @@ enum AudioOrigin {
   /// Found in the project's folder; the session wasn't read, or doesn't
   /// refer to it.
   discovered,
+
+  /// Found in a folder the user added to this project's search (a session
+  /// that keeps its audio outside its own folder). The user chose where to
+  /// look; nothing here says the session uses these files.
+  addedFolder,
 }
 
 /// One audio file associated with a project.
@@ -191,6 +196,7 @@ class AssociatedAudioReport {
     required this.confirmed,
     required this.discovered,
     required this.unreadableSessions,
+    this.addedFolders = const [],
     this.truncated = false,
     this.indexedAt,
     this.offlineFolders = const [],
@@ -208,8 +214,21 @@ class AssociatedAudioReport {
   /// Files the sessions refer to, present or not ([AssociatedAudioFile.exists]).
   final List<AssociatedAudioFile> confirmed;
 
-  /// Other audio files in [folders].
+  /// Other audio files: in [folders] ([AudioOrigin.discovered]) and in
+  /// [addedFolders] ([AudioOrigin.addedFolder]).
   final List<AssociatedAudioFile> discovered;
+
+  /// Folders the user added to this project's search, searched after its
+  /// own. Kept apart: their files are [AudioOrigin.addedFolder].
+  final List<String> addedFolders;
+
+  /// Files found in the project's own folders.
+  List<AssociatedAudioFile> get inProjectFolders =>
+      discovered.where((f) => f.origin != AudioOrigin.addedFolder).toList();
+
+  /// Files found in folders the user added.
+  List<AssociatedAudioFile> get inAddedFolders =>
+      discovered.where((f) => f.origin == AudioOrigin.addedFolder).toList();
 
   /// Sessions whose references couldn't be read: an unsupported format
   /// (Pro Tools) or a damaged file.
@@ -248,6 +267,7 @@ class AssociatedAudioReport {
         'cf': [for (final f in confirmed) f.toJson()],
         'df': [for (final f in discovered) f.toJson()],
         'us': unreadableSessions,
+        if (addedFolders.isNotEmpty) 'af': addedFolders,
         if (truncated) 'tr': true,
         if (indexedAt != null) 'at': indexedAt!.toUtc().millisecondsSinceEpoch,
         if (offlineFolders.isNotEmpty) 'of': offlineFolders,
@@ -270,6 +290,7 @@ class AssociatedAudioReport {
       confirmed: files('cf'),
       discovered: files('df'),
       unreadableSessions: strings('us'),
+      addedFolders: strings('af'),
       truncated: json['tr'] == true,
       indexedAt: at is int
           ? DateTime.fromMillisecondsSinceEpoch(at, isUtc: true).toLocal()
@@ -378,6 +399,18 @@ class AudioIndexIo {
   }
 }
 
+/// Whether [report] shows a session that keeps its audio outside its own
+/// folder: no session reference could be read (Pro Tools), none was
+/// confirmed, the project's folders were all searched (none offline) and
+/// held no audio at all. Then the page says so plainly instead of "found in
+/// the folder (0)" — and never guesses where the audio is.
+bool sessionAudioLivesElsewhere(AssociatedAudioReport report) =>
+    report.unreadableSessions.isNotEmpty &&
+    !report.confirmed.any((f) => f.exists) &&
+    report.inProjectFolders.isEmpty &&
+    report.cloudOnlySessions.isEmpty &&
+    !report.offlineFolders.any(report.folders.contains);
+
 /// Reads which audio files belong to a project, using what [previous] (the
 /// cached result) already knows:
 ///
@@ -394,6 +427,7 @@ class AudioIndexIo {
 AssociatedAudioReport indexProjectAudio({
   required List<String> sessionPaths,
   required List<String> folders,
+  List<String> addedFolders = const [],
   AssociatedAudioReport? previous,
   AudioIndexIo io = const AudioIndexIo(),
   DateTime? now,
@@ -518,15 +552,21 @@ AssociatedAudioReport indexProjectAudio({
     }
   }
 
-  // Folders: everything else.
+  // Folders: everything else — the project's own folders first, then the
+  // ones the user added (a file in both counts as the project's).
   final discovered = <AssociatedAudioFile>[];
   final offline = <String>[];
   var truncated = false;
-  for (final folder in folders) {
+  for (final (folder, origin) in [
+    for (final f in folders) (f, AudioOrigin.discovered),
+    for (final f in addedFolders) (f, AudioOrigin.addedFolder),
+  ]) {
     if (!io.directoryExists(folder)) {
       offline.add(folder);
       for (final f in previous?.discovered ?? const <AssociatedAudioFile>[]) {
-        if (p.isWithin(folder, f.path) && seen.add(_key(f.path))) {
+        if (f.origin == origin &&
+            p.isWithin(folder, f.path) &&
+            seen.add(_key(f.path))) {
           discovered.add(f);
         }
       }
@@ -548,8 +588,7 @@ AssociatedAudioReport indexProjectAudio({
             truncated = true;
             return;
           }
-          discovered.add(describe(path,
-              origin: AudioOrigin.discovered, projectFolder: folder));
+          discovered.add(describe(path, origin: origin, projectFolder: folder));
         } else if (depth < kAudioSearchDepth &&
             !_skippedFolders.contains(name.toLowerCase())) {
           walk(path, depth + 1);
@@ -567,6 +606,7 @@ AssociatedAudioReport indexProjectAudio({
     confirmed: confirmed,
     discovered: discovered,
     unreadableSessions: unreadable,
+    addedFolders: addedFolders,
     truncated: truncated,
     indexedAt: now ?? DateTime.now(),
     offlineFolders: offline,
@@ -579,11 +619,13 @@ AssociatedAudioReport indexProjectAudio({
 Future<AssociatedAudioReport> readAssociatedAudio({
   required List<String> sessionPaths,
   required List<String> folders,
+  List<String> addedFolders = const [],
   AssociatedAudioReport? previous,
 }) =>
     Isolate.run(() => indexProjectAudio(
           sessionPaths: sessionPaths,
           folders: folders,
+          addedFolders: addedFolders,
           previous: previous,
         ));
 

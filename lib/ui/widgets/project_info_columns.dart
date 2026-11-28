@@ -59,7 +59,7 @@ Map<String, TrinaCell> projectInfoCells(MusicProject project) => {
       // Hz, so the column sorts by rate; 0 when the project says none. The
       // renderer adds the bit depth (#213).
       kSampleRateColumnField: TrinaCell(value: project.stats?.sampleRate ?? 0),
-      // The actual file's type ("PTX", "MON", "WAV"); "STACK" for a version
+      // The actual file's type ("ptx", "mon", "wav"); "stack" for a version
       // stack, which is no folder on disk (v3.0.6).
       kFileTypeColumnField: TrinaCell(value: projectFileTypeLabel(project)),
     };
@@ -115,7 +115,7 @@ TrinaColumn projectSampleRateColumn({
 
 /// The project's file type as a compact label ("PTX", "MON", "WAV"),
 /// sortable and filterable as text. [describe] gives a label's tooltip —
-/// for "STACK", that it is a group of versions, not a folder.
+/// for "stack", that it is a group of versions, not a folder.
 TrinaColumn projectFileTypeColumn({
   required String title,
   String? Function(String label)? describe,
@@ -130,15 +130,12 @@ TrinaColumn projectFileTypeColumn({
       renderer: (ctx) {
         final label = '${ctx.cell.value}';
         if (label.isEmpty) return const SizedBox.shrink();
+        // Plain text, as in the other columns: no weight or spacing of its
+        // own, so the grid's cell style applies.
         final text = Text(
           label,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(
-            fontFeatures: [FontFeature.tabularFigures()],
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
         );
         final tip = describe?.call(label);
         if (tip == null) return text;
