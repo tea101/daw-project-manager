@@ -31,3 +31,4 @@ test/services/auto_preview_rules_test.dart
 test/services/mixdown_shared_folder_test.dart
 test/services/preview_reference_repair_test.dart
 test/services/mixdown_detector_service_test.dart
+test/repository/apple_double_preview_repair_test.dart

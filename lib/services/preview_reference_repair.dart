@@ -40,11 +40,13 @@ class PreviewReferenceRepair {
   /// - Remembered "Keep Current" answer (`ignoredNewerSongPath`) on an
   ///   AppleDouble file: cleared.
   /// - Auto-detected preview that today's rules would never pick (v3.0.6,
-  ///   [autoPreviewProblem]): multichannel or ADM by its header, a stem by
-  ///   its name or folder, or — when the session shares its
-  ///   folder with other sessions ([sharedSessionFolder]) — a file not named
-  ///   after this session. Cleared, so the project gets a fitting one or
-  ///   none. The manual preview is never judged by these rules.
+  ///   [autoPreviewProblem]): multichannel or ADM by its header, a stem or
+  ///   other part of a mix (an instrument group, one channel of a split, a
+  ///   mono file), or not reliably this session's: named after it, or
+  ///   bounced into its own mixdown folder in a folder no other session
+  ///   shares ([sharedSessionFolder]). Cleared, so the project gets a
+  ///   fitting one or none. The manual preview is never judged by these
+  ///   rules.
   ///
   /// [fileExists] is injectable for tests; it defaults to a disk check.
   /// [readFormat] reads an audio header (a few small reads); null skips the
@@ -86,7 +88,14 @@ class PreviewReferenceRepair {
           ? readFormat(path)
           : null;
       final problem = autoPreviewProblem(path, project.filePath,
-          sharedFolder: sharedSessionFolder, format: format);
+          sharedFolder: sharedSessionFolder,
+          inSessionBounceFolder: isInSessionBounceFolder(
+            path,
+            project.filePath,
+            MixdownDetectorService.bounceFolderNamesFor(project.dawType,
+                userFolders: userMixdownFolders),
+          ),
+          format: format);
       // A session's own clips are judged by the Pro Tools rule above, which
       // knows which DAW keeps them where and respects a folder the user
       // listed; the name-only guess would overrule both.

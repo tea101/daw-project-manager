@@ -180,10 +180,16 @@ class MixdownDetectorService {
           .contains(p.normalize(dir.path));
       final projectDir = File(project.filePath).parent.path;
       for (final file in files) {
+        final format = readFormat(file.path);
         if (mayAutoSelect(file.path,
-                projectFolder: projectDir, userListedFolder: userListed) &&
+                projectFolder: projectDir,
+                userListedFolder: userListed,
+                format: format) &&
+            // Never a part of a mix (an instrument group, one channel of a
+            // split, a mono file); in a folder shared by several sessions,
+            // only a file reliably named after this one (v3.0.6).
             autoPreviewFitsSession(file.path, project.filePath,
-                sharedFolder: shared)) {
+                sharedFolder: shared, format: format)) {
           return file;
         }
       }
@@ -191,6 +197,21 @@ class MixdownDetectorService {
 
     return null;
   }
+
+  /// Every folder name automatic detection treats as [project]'s mixdown
+  /// folder: the user's, the DAW's and the generic ones (v3.0.6, for
+  /// [isInSessionBounceFolder]).
+  static List<String> bounceFolderNamesFor(
+    String? dawType, {
+    Iterable<String> userFolders = const [],
+  }) =>
+      [
+        ...userFolders,
+        ...?dawFolders[dawType],
+        ...fallbackFolders,
+        if (dawType == 'Logic Pro') 'Bounces',
+        'Exported Files',
+      ];
 
   /// Whether the folder [sessionPath] sits in holds other sessions of the
   /// same kind (same extension; AppleDouble companions don't count), so
@@ -228,11 +249,12 @@ class MixdownDetectorService {
     String path, {
     String? projectFolder,
     bool userListedFolder = false,
+    AudioFormatInfo? format,
   }) {
     final rejection = autoPreviewRejection(
       path,
       projectFolder: projectFolder,
-      format: readFormat(path),
+      format: format ?? readFormat(path),
     );
     if (rejection == null) return true;
     return userListedFolder && rejection == AutoPreviewRejection.sessionClip;
