@@ -264,7 +264,7 @@ void main() {
 
       final moved = reorderColumnLayout(layout, 0, 2);
 
-      expect(moved.map((s) => s.id).take(3), ['dawType', 'bpm', 'status']);
+      expect(moved.map((s) => s.id).take(3), ['dawType', 'fileType', 'status']);
     });
 
     test('the tags column also needs the tags feature switched on', () {

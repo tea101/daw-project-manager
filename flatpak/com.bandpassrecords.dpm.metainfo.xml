@@ -58,6 +58,19 @@
       this one for each shipped version instead of overwriting it, so the
       changelog accumulates.
     -->
+    <release version="3.0.6" date="2026-11-28">
+      <description>
+        <p>Customised WaveLab build (unofficial, from the tea101 fork).</p>
+        <ul>
+          <li>Cover art as a small square before each name in the project list</li>
+          <li>File Type column and filter (PTX, MON, WAV…); version stacks show STACK</li>
+          <li>Audio files on each project page: confirmed by the session, or found in its folder</li>
+          <li>Stereo, multichannel and Dolby Atmos ADM BWF told apart from their headers</li>
+          <li>Open in PT Peek and Quick Look for Pro Tools sessions on macOS</li>
+          <li>Optional standalone audio files in the project list</li>
+        </ul>
+      </description>
+    </release>
     <release version="3.0.4" date="2026-11-27">
       <description>
         <ul>

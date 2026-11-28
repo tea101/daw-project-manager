@@ -15,6 +15,22 @@
   ],
   "releases": [
     {
+      "version": "3.0.6",
+      "date": "2026-11-28",
+      "highlights": {
+        "en": [
+          "Customised WaveLab build (unofficial, from the tea101 fork), not an official Bandpass Records release.",
+          "Project list: cover art is a small square before the name, long names end in “…”, and names line up whether or not a project has a cover.",
+          "New File Type column beside the DAW column (PTX, MON, WPR, ALS, WAV, AIF…), sortable and filterable. A version stack shows STACK: it is a group of versions, not a folder on disk.",
+          "Audio files on each project page: files confirmed by the session itself (WaveLab montages, Cubase, Ableton Live, REAPER, FL Studio, Studio One) are kept apart from files only found in the project folder, and files the session names but can't be found are listed with their last path.",
+          "Stereo, multichannel and Dolby Atmos ADM BWF files are told apart from their headers, never their names. A speaker layout is shown only when the file states one; otherwise the channel count. Multichannel files and ADM masters are never downmixed silently: they aren't played in the app.",
+          "Pro Tools: Open in PT Peek and Quick Look for .ptx sessions on a Mac with Neyrinck PT Peek installed.",
+          "Preview songs: a song you chose is never replaced. Automatic choice never picks stems, a session's own clips, ADM masters or multichannel files.",
+          "Optional: show standalone audio files (masters and mixes in folders without a DAW session) as rows. Off by default; turning it off hides them and never deletes anything."
+        ]
+      }
+    },
+    {
       "version": "3.0.4",
       "date": "2026-11-27",
       "highlights": {

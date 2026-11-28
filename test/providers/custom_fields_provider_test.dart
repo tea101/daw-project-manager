@@ -166,7 +166,9 @@ void main() {
       final notifier = container.read(projectsTableColumnsProvider.notifier);
 
       await notifier.setVisible('bpm', false);
-      await notifier.reorder(6, 0); // deadline to the front
+      // deadline to the front (index 7 since File Type joined, v3.0.6)
+      await notifier.reorder(
+          kProjectsTableBuiltInColumns.indexOf('deadline'), 0);
 
       final saved = decodeColumnLayout(
           box.get(ProjectsTableColumnsNotifier.boxKey));
