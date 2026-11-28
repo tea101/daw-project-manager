@@ -282,6 +282,40 @@ class ProjectCoverBleed extends StatelessWidget {
   }
 }
 
+/// Side of the square thumbnail at the start of a projects-table row.
+///
+/// Smaller than the row (48) so it sits inside it with a margin, and small
+/// enough that the name beside it keeps most of the column.
+const double kProjectRowThumbnailSize = 34;
+
+/// The projects table's leading thumbnail: the project's cover (or its chosen
+/// colour and icon) as a small square before the name.
+///
+/// It always takes its square, decorated or not, so every name in the column
+/// starts at the same place. An undecorated project's square is empty — no
+/// placeholder, no stand-in colour (see [ProjectCoverAvatar]).
+class ProjectRowThumbnail extends StatelessWidget {
+  final MusicProject project;
+  final double size;
+
+  const ProjectRowThumbnail({
+    super.key,
+    required this.project,
+    this.size = kProjectRowThumbnailSize,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: size,
+      height: size,
+      child: projectHasVisualIdentity(project)
+          ? ProjectCoverAvatar(project: project, size: size)
+          : null,
+    );
+  }
+}
+
 /// How strongly a chosen accent colour is painted in the bleed. Below full
 /// strength so the name reads over the faded part, and so a list full of
 /// coloured rows is tinted rather than striped.
