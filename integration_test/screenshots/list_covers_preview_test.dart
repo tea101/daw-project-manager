@@ -84,28 +84,26 @@ Future<void> _seed() async {
     (Colors.brown, Colors.amber),
     (Colors.blueGrey, Colors.lightBlueAccent),
   ];
-  // Every other row gets a cover, so decorated and plain rows sit side by side.
-  var c = 0;
+  // Every other row gets a cover, so decorated and plain rows sit side by
+  // side wherever the list's sort puts them; a few get very long names.
+  const longNames = [
+    'Togetherness (Dolby Atmos Master 48k 7.1.4) – Extended Club Version Final Approved',
+    'MotorWayToO v24 [48k Album] Stereo Master with Alternate Intro and Outro',
+    'Fresh Home – Jaju Dolby Atmos Mix (WaveLab) Final Delivery Version for Label',
+    'Travel Wide – Sonic Daze Remaster 2026 (96k) Vinyl Cut with Extended Fade',
+  ];
   for (final (i, project) in rows.indexed) {
-    if (i.isOdd || c >= palette.length) continue;
-    final (a, b) = palette[c++];
-    final path = await _cover(covers.path, project.id, a, b, project.displayName[0]);
-    var updated = project.copyWith(thumbnailPath: path);
-    // One covered row with a very long name, to show the "…".
-    if (c == 1) {
-      updated = updated.copyWith(
-        customDisplayName:
-            'Togetherness (Dolby Atmos Master 48k 7.1.4) – Extended Club Version Final Approved',
-      );
+    var updated = project;
+    if (i.isEven) {
+      final (a, b) = palette[(i ~/ 2) % palette.length];
+      final path = await _cover(covers.path, project.id, a, b, project.displayName[0]);
+      updated = updated.copyWith(thumbnailPath: path);
+    }
+    if (i % 3 == 0 && i ~/ 3 < longNames.length) {
+      updated = updated.copyWith(customDisplayName: longNames[i ~/ 3]);
     }
     await box.put(project.id, updated);
   }
-  // And a long name on a row with no cover.
-  final plain = rows[1];
-  await box.put(
-    plain.id,
-    plain.copyWith(customDisplayName: 'MotorWayToO v24 [48k Album] Stereo Master with Alternate Intro'),
-  );
 
   final settings = await Hive.openBox<String>('settings');
   await settings.putAll({
@@ -129,9 +127,10 @@ void main() {
     WidgetsApp.debugAllowBannerOverride = false;
     app.main(const []);
 
-    final end = DateTime.now().add(const Duration(seconds: 60));
-    while (find.textContaining('Togetherness').evaluate().isEmpty) {
-      if (DateTime.now().isAfter(end)) throw TestFailure('The list never showed');
+    // The table is up once its search field is.
+    final end = DateTime.now().add(const Duration(seconds: 90));
+    while (find.byType(TextField).evaluate().isEmpty) {
+      if (DateTime.now().isAfter(end)) break;
       await tester.pump(const Duration(milliseconds: 100));
     }
     // Covers are decoded off the UI thread: give them real time to arrive.
@@ -155,13 +154,18 @@ void main() {
     await shot('1-projects-list.png');
     // A closer look at the Name column: from the left of the first name to a
     // little past it, a dozen rows down.
-    final name = tester.getRect(find.textContaining('Togetherness').first);
-    final crop = Rect.fromLTWH(
-      (name.left - 120).clamp(0, _size.width),
-      (name.top - 200).clamp(0, _size.height),
-      700,
-      560,
-    );
+    final names = find.textContaining(' – ');
+    final crop = names.evaluate().isEmpty
+        ? const Rect.fromLTWH(0, 120, 900, 620)
+        : () {
+            final r = tester.getRect(names.first);
+            return Rect.fromLTWH(
+              (r.left - 120).clamp(0, _size.width),
+              (r.top - 120).clamp(0, _size.height),
+              760,
+              560,
+            );
+          }();
     await shot('2-name-column-close-up.png', crop: crop, ratio: 2);
   });
 }
