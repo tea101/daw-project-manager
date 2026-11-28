@@ -114,8 +114,8 @@ class AssociatedAudioFile {
 }
 
 /// What one session said, kept so an unchanged session isn't read again.
-class SessionRecord {
-  const SessionRecord({
+class SessionAudioRecord {
+  const SessionAudioRecord({
     required this.path,
     this.sizeBytes,
     this.modifiedMs,
@@ -136,10 +136,10 @@ class SessionRecord {
         if (refs != null) 'r': [for (final r in refs!) r.toJson()],
       };
 
-  static SessionRecord? fromJson(Object? json) {
+  static SessionAudioRecord? fromJson(Object? json) {
     if (json is! Map || json['p'] is! String) return null;
     final refs = json['r'];
-    return SessionRecord(
+    return SessionAudioRecord(
       path: json['p'] as String,
       sizeBytes: json['z'] as int?,
       modifiedMs: json['m'] as int?,
@@ -230,7 +230,7 @@ class AssociatedAudioReport {
   final List<String> cloudOnlySessions;
 
   /// What each session said, by path, for the next incremental read.
-  final Map<String, SessionRecord> sessions;
+  final Map<String, SessionAudioRecord> sessions;
 
   List<AssociatedAudioFile> get missing =>
       confirmed.where((f) => !f.exists).toList();
@@ -278,7 +278,7 @@ class AssociatedAudioReport {
       cloudOnlySessions: strings('cs'),
       sessions: {
         for (final x in (json['ss'] as List?) ?? const [])
-          if (SessionRecord.fromJson(x) case final s?) s.path: s,
+          if (SessionAudioRecord.fromJson(x) case final s?) s.path: s,
       },
     );
   }
@@ -453,7 +453,7 @@ AssociatedAudioReport indexProjectAudio({
   }
 
   // Sessions: confirmed references.
-  final sessions = <String, SessionRecord>{};
+  final sessions = <String, SessionAudioRecord>{};
   final confirmed = <AssociatedAudioFile>[];
   final unreadable = <String>[];
   final cloudSessions = <String>[];
@@ -461,7 +461,7 @@ AssociatedAudioReport indexProjectAudio({
     final prev = previous?.sessions[session];
     final st = io.stat(session);
     List<SessionAudioRef>? refs;
-    SessionRecord record;
+    SessionAudioRecord record;
     if (st == null) {
       // Not here (a drive not connected): what was known last time stands,
       // files and all — they aren't "missing", only out of reach.
@@ -483,15 +483,15 @@ AssociatedAudioReport indexProjectAudio({
       refs = prev.refs;
       record = prev;
     } else if (!canReadSessionAudio(session)) {
-      record = SessionRecord(
+      record = SessionAudioRecord(
           path: session, sizeBytes: st.size, modifiedMs: st.modifiedMs);
     } else if (io.isCloudOnly(session)) {
       cloudSessions.add(session);
       refs = prev?.refs;
-      record = prev ?? SessionRecord(path: session);
+      record = prev ?? SessionAudioRecord(path: session);
     } else {
       refs = io.readSession(session);
-      record = SessionRecord(
+      record = SessionAudioRecord(
         path: session,
         sizeBytes: st.size,
         modifiedMs: st.modifiedMs,
