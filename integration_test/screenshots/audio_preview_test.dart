@@ -166,7 +166,7 @@ void main() {
       await until(find.text('Audio files').hitTestable());
       await tester.tap(find.text('Audio files').hitTestable().first);
       await pumpFor(10);
-      await tester.tap(find.text('Find audio files').hitTestable().first);
+      // Filled by itself (from the index, or read on opening): no button.
       await until(find.textContaining('Confirmed by the session'));
       await pumpFor(10);
       await shot('2-project-audio-files.png');
@@ -175,6 +175,16 @@ void main() {
           const Offset(0, -500));
       await pumpFor(5);
       await shot('3-project-audio-files-scrolled.png');
+    });
+
+    await step('filter', () async {
+      await tester.tap(find.byIcon(Icons.arrow_back).hitTestable().first);
+      await pumpFor(15);
+      await tester.tap(find.text('All audio').hitTestable().first);
+      await pumpFor(5);
+      await tester.tap(find.text('With an ADM master').hitTestable().last);
+      await pumpFor(10);
+      await shot('4-filter-adm-masters.png');
     });
 
     ErrorWidget.builder = errorWidgetBuilder;
